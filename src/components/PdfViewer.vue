@@ -41,18 +41,20 @@ async function renderPage(pageNum: number) {
   isLoading.value = true
   try {
     const page = await pdfDoc.value.getPage(pageNum)
-
-    // scale: 1.5 = 150% — อ่านสบายบน desktop
+    const canvas = canvasRef.value                    // ← เก็บ reference ไว้ก่อน
     const viewport = page.getViewport({ scale: 1.5 })
-    const canvas = canvasRef.value
     const ctx = canvas.getContext('2d')!
 
     canvas.height = viewport.height
     canvas.width = viewport.width
 
-    await page.render({ canvasContext: ctx, viewport }).promise
+    // v4+ ต้องส่ง canvas element เข้าไปด้วยตรงๆ
+    await page.render({
+      canvasContext: ctx,
+      viewport,
+      canvas,               // ← เพิ่มบรรทัดนี้
+    }).promise
 
-    // แจ้ง parent ว่า page เปลี่ยน — parent จะเก็บลง DB ใน Feature 2
     emit('pageChanged', pageNum)
   } finally {
     isLoading.value = false
