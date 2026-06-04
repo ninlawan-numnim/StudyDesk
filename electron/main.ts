@@ -3,6 +3,15 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import fs from 'node:fs'
+import { createApp } from 'vue'
+import './assets/styles/base.css'  
+import App from '../src/App.vue'
+
+createApp(App).mount('#app').$nextTick(() => {
+  window.ipcRenderer.on('main-process-message', (_event, message) => {
+    console.log(message)
+  })
+})
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))

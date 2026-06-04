@@ -9,7 +9,7 @@
  * 4. แสดง error ตาม SRS-1.1.2
  */
 import { ref } from 'vue'
-import PdfViewer from '../components/MarkdownEditor.vue'
+import PdfViewer from '../components/PdfViewer.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 
 // --- State ---
