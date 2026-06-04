@@ -16,7 +16,6 @@ electron.contextBridge.exposeInMainWorld("ipcRenderer", {
   invoke(...args) {
     const [channel, ...omit] = args;
     return electron.ipcRenderer.invoke(channel, ...omit);
-  }
-  // You can expose other APTs you need here.
-  // ...
+  },
+  openPdfFile: () => electron.ipcRenderer.invoke("dialog:openPdf")
 });

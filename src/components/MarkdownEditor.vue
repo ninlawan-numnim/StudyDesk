@@ -35,40 +35,44 @@ onMounted(() => {
       basicSetup,
       markdown(),
       EditorView.theme({
-        // Override CodeMirror default theme ให้ match กับ dark theme ของ app
-        '&': {
-          backgroundColor: 'var(--color-bg-pane)',
-          color: 'var(--color-text-primary)',
-          height: '100%',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 'var(--font-size-base)',
-        },
-        '.cm-content': {
-          padding: 'var(--spacing-md)',
-          caretColor: 'var(--color-accent)',
-        },
-        '.cm-gutters': {
-          backgroundColor: 'var(--color-bg-secondary)',
-          color: 'var(--color-text-muted)',
-          border: 'none',
-          borderRight: '1px solid var(--color-divider)',
-        },
-        '.cm-activeLineGutter': {
-          backgroundColor: 'var(--color-bg-toolbar)',
-        },
-        '.cm-activeLine': {
-          backgroundColor: 'rgba(137, 180, 250, 0.05)',
-        },
-        '.cm-cursor': {
-          borderLeftColor: 'var(--color-accent)',
-        },
-        '.cm-selectionBackground': {
-          backgroundColor: 'rgba(137, 180, 250, 0.2) !important',
-        },
-        '.cm-focused .cm-selectionBackground': {
-          backgroundColor: 'rgba(137, 180, 250, 0.25) !important',
-        },
-      }),
+  '&': {
+    backgroundColor: 'var(--color-bg-pane)',
+    color: 'var(--color-text-primary)',
+    height: '100%',
+    fontFamily: 'var(--font-mono)',
+    fontSize: 'var(--font-size-base)',
+  },
+  '.cm-content': {
+    padding: 'var(--spacing-md)',
+    caretColor: 'var(--color-accent)',
+    lineHeight: '1.7',        // ← เพิ่ม line height อ่านสบายขึ้น
+  },
+  '.cm-gutters': {
+    backgroundColor: 'var(--color-bg-secondary)',
+    color: 'var(--color-text-muted)',
+    border: 'none',
+    borderRight: '1px solid var(--color-divider)',
+    paddingRight: '8px',
+  },
+  '.cm-activeLineGutter': {
+    backgroundColor: 'var(--color-bg-toolbar)',
+    color: 'var(--color-text-secondary)',
+  },
+  '.cm-activeLine': {
+    backgroundColor: 'rgba(94, 175, 214, 0.06)',  // accent สีฟ้า subtle มาก
+  },
+  '.cm-cursor': {
+    borderLeftColor: 'var(--color-accent)',
+    borderLeftWidth: '2px',
+  },
+  '.cm-selectionBackground, .cm-focused .cm-selectionBackground': {
+    backgroundColor: 'rgba(94, 175, 214, 0.18) !important',
+  },
+  '.cm-matchingBracket': {
+    color: 'var(--color-accent) !important',
+    fontWeight: 'bold',
+  },
+}),
 
       // Sync content กลับไปให้ parent ทุกครั้งที่ document เปลี่ยน
       EditorView.updateListener.of((update) => {

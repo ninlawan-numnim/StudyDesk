@@ -1,32 +1,22 @@
 <script setup lang="ts">
-/**
- * PdfViewer.vue — Renderer Process
- * 
- * รับ pdfBuffer (number[]) จาก parent แล้ว render ลง <canvas>
- * ใช้ pdfjs-dist ซึ่ง run ใน browser/renderer context ได้เลย
- * ไม่ต้องผ่าน IPC อีกรอบ — buffer ถูกส่งมาแล้วตั้งแต่ Main Process
- */
 import { ref, watch } from 'vue'
 import * as pdfjsLib from 'pdfjs-dist'
 
-// Worker ต้องกำหนดก่อน getDocument ถูกเรียก
-// Vite จะ bundle worker file ให้อัตโนมัติผ่าน import.meta.url
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.mjs',
-  import.meta.url
-).toString()
+// ── Worker Setup ──────────────────────────────────────
+// data URI เปล่า = ไม่มี worker จริง = run บน main thread
+// ไม่มี network request เกิดขึ้นเลย แก้ปัญหา SSL -101
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'data:application/javascript,'
 
-// --- Props ---
+// ── Props ─────────────────────────────────────────────
 const props = defineProps<{
   pdfBuffer: number[] | null
 }>()
 
-// --- Emits — ส่ง page state ขึ้นไปให้ parent เก็บสำหรับ Feature 2 ---
 const emit = defineEmits<{
   pageChanged: [page: number]
 }>()
 
-// --- State ---
+// ── State ─────────────────────────────────────────────
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const currentPage = ref(1)
 const totalPages = ref(0)
@@ -34,25 +24,24 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const pdfDoc = ref<pdfjsLib.PDFDocumentProxy | null>(null)
 
-// --- Render a specific page number onto the canvas ---
+// ── Render ────────────────────────────────────────────
 async function renderPage(pageNum: number) {
   if (!pdfDoc.value || !canvasRef.value) return
 
   isLoading.value = true
   try {
     const page = await pdfDoc.value.getPage(pageNum)
-    const canvas = canvasRef.value                    // ← เก็บ reference ไว้ก่อน
+    const canvas = canvasRef.value
     const viewport = page.getViewport({ scale: 1.5 })
     const ctx = canvas.getContext('2d')!
 
     canvas.height = viewport.height
     canvas.width = viewport.width
 
-    // v4+ ต้องส่ง canvas element เข้าไปด้วยตรงๆ
     await page.render({
       canvasContext: ctx,
       viewport,
-      canvas,               // ← เพิ่มบรรทัดนี้
+      canvas,
     }).promise
 
     emit('pageChanged', pageNum)
@@ -61,7 +50,7 @@ async function renderPage(pageNum: number) {
   }
 }
 
-// --- Watch buffer prop — โหลด PDF ใหม่ทุกครั้งที่ buffer เปลี่ยน ---
+// ── Load PDF ──────────────────────────────────────────
 watch(
   () => props.pdfBuffer,
   async (newBuffer) => {
@@ -74,7 +63,17 @@ watch(
 
     try {
       const uint8 = new Uint8Array(newBuffer)
-      pdfDoc.value = await pdfjsLib.getDocument({ data: uint8 }).promise
+
+      // ลบ disableWorker ออก — ไม่มีใน pdfjs v4 แล้ว
+      // ใช้ useWorkerFetch: false และ useSystemFonts: true แทน
+      // เพื่อป้องกัน network request ทุกชนิด
+      pdfDoc.value = await pdfjsLib.getDocument({
+        data: uint8,
+        disableStream: true,
+        useWorkerFetch: false,
+        useSystemFonts: true,
+      }).promise
+
       totalPages.value = pdfDoc.value.numPages
       await renderPage(1)
     } catch (e) {
@@ -84,7 +83,7 @@ watch(
   }
 )
 
-// --- Page navigation ---
+// ── Navigation ────────────────────────────────────────
 async function goToPage(delta: number) {
   const next = currentPage.value + delta
   if (next < 1 || next > totalPages.value) return
@@ -95,8 +94,7 @@ async function goToPage(delta: number) {
 
 <template>
   <div class="pdf-viewer">
-
-    <!-- Empty state — ยังไม่ได้เปิดไฟล์ -->
+    <!-- Empty state -->
     <div v-if="!pdfBuffer && !errorMessage" class="pdf-viewer__empty">
       <div class="pdf-viewer__empty-icon">📄</div>
       <p class="pdf-viewer__empty-text">Open a PDF file to begin</p>
@@ -113,7 +111,7 @@ async function goToPage(delta: number) {
       <span>Rendering...</span>
     </div>
 
-    <!-- Canvas — PDF จะถูก render ที่นี่ -->
+    <!-- Canvas -->
     <div v-if="pdfBuffer" class="pdf-viewer__canvas-wrapper">
       <canvas ref="canvasRef" class="pdf-viewer__canvas" />
     </div>
@@ -127,11 +125,9 @@ async function goToPage(delta: number) {
       >
         ← Prev
       </button>
-
       <span class="pdf-viewer__page-info">
         {{ currentPage }} / {{ totalPages }}
       </span>
-
       <button
         class="pdf-viewer__btn"
         :disabled="currentPage >= totalPages"
@@ -140,12 +136,10 @@ async function goToPage(delta: number) {
         Next →
       </button>
     </div>
-
   </div>
 </template>
 
 <style scoped>
-/* Layout */
 .pdf-viewer {
   display: flex;
   flex-direction: column;
@@ -154,7 +148,6 @@ async function goToPage(delta: number) {
   position: relative;
 }
 
-/* Canvas scroll area */
 .pdf-viewer__canvas-wrapper {
   flex: 1;
   overflow-y: auto;
@@ -171,7 +164,6 @@ async function goToPage(delta: number) {
   max-width: 100%;
 }
 
-/* Page controls bar */
 .pdf-viewer__controls {
   display: flex;
   align-items: center;
@@ -208,7 +200,6 @@ async function goToPage(delta: number) {
   text-align: center;
 }
 
-/* Empty state */
 .pdf-viewer__empty {
   flex: 1;
   display: flex;
@@ -233,7 +224,6 @@ async function goToPage(delta: number) {
   font-size: var(--font-size-sm);
 }
 
-/* Error state */
 .pdf-viewer__error {
   padding: var(--spacing-md);
   color: var(--color-error);
@@ -241,7 +231,6 @@ async function goToPage(delta: number) {
   font-size: var(--font-size-sm);
 }
 
-/* Loading overlay */
 .pdf-viewer__loading {
   position: absolute;
   inset: 0;

@@ -1,39 +1,46 @@
 :root {
-  /* Colors */
-  --color-bg-primary: #1e1e2e;
-  --color-bg-secondary: #181825;
-  --color-bg-toolbar: #313244;
-  --color-bg-pane: #1e1e2e;
-  --color-divider: #45475a;
+  /* ── Background Layers ── */
+  --color-bg-primary:   #1f2128;   /* พื้นหลังหลัก — dark blue-grey */
+  --color-bg-secondary: #171920;   /* เข้มกว่า — ใช้ใต้ canvas, gutter */
+  --color-bg-toolbar:   #282c34;   /* toolbar และ header bar */
+  --color-bg-pane:      #1f2128;
 
-  --color-text-primary: #cdd6f4;
-  --color-text-secondary: #a6adc8;
-  --color-text-muted: #6c7086;
+  /* ── Borders & Dividers ── */
+  --color-divider:      #2e3440;
 
-  --color-accent: #89b4fa;
-  --color-accent-hover: #b4d0fb;
-  --color-error: #f38ba8;
-  --color-success: #a6e3a1;
-  --color-warning: #f9e2af;
+  /* ── Text ── */
+  --color-text-primary:   #e0e4ef;   /* ขาวนวล อ่านสบาย ไม่แสบตา */
+  --color-text-secondary: #9aa0b4;   /* label, hint */
+  --color-text-muted:     #555c70;   /* placeholder, gutter number */
 
-  --color-btn-bg: #313244;
-  --color-btn-hover: #45475a;
-  --color-btn-disabled: #45475a;
+  /* ── Accent — Soft Teal ── */
+  --color-accent:       #5eafd6;   /* ฟ้าอมเขียว นุ่มตา */
+  --color-accent-hover: #7dc4e8;
 
-  /* Spacing */
+  /* ── Semantic ── */
+  --color-error:   #e06c75;   /* แดงนุ่ม */
+  --color-success: #98c379;   /* เขียวนุ่ม */
+  --color-warning: #e5c07b;   /* เหลืองนุ่ม */
+
+  /* ── Buttons ── */
+  --color-btn-bg:       #2e3440;
+  --color-btn-hover:    #3b4252;
+  --color-btn-disabled: #2e3440;
+
+  /* ── Spacing ── */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 16px;
   --spacing-lg: 24px;
 
-  /* Typography */
+  /* ── Typography ── */
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  --font-size-sm: 0.8125rem;
+  --font-size-sm:   0.8125rem;
   --font-size-base: 0.9375rem;
 
-  /* Layout */
+  /* ── Layout ── */
   --toolbar-height: 48px;
-  --divider-width: 4px;
-  --border-radius: 6px;
+  --divider-width:  4px;
+  --border-radius:  6px;
 }
