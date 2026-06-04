@@ -1,7 +1,8 @@
-import { app, BrowserWindow } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import fs from 'node:fs'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -63,6 +64,26 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
   }
+})
+
+ipcMain.handle('dialog:openPdf', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'Open PDF File',
+    filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
+    properties: ['openFile'],
+  })
+
+  // If user cancelled the dialog, return null — Renderer handles this gracefully
+  if (canceled || filePaths.length === 0) return null
+
+  const filePath = filePaths[0]
+
+  // Read the file as a Buffer and convert to a plain array
+  // Why array? Buffers don't serialize cleanly over IPC; number[] does.
+  const buffer = Array.from(fs.readFileSync(filePath))
+  const fileName = filePath.split(/[\\/]/).pop() ?? 'document.pdf'
+
+  return { buffer, fileName }
 })
 
 app.whenReady().then(createWindow)
