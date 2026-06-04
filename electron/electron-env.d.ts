@@ -23,5 +23,11 @@ declare namespace NodeJS {
 
 // Used in Renderer process, expose in `preload.ts`
 interface Window {
-  ipcRenderer: import('electron').IpcRenderer
+  ipcRenderer: {
+    on: (...args: any[]) => any
+    off: (...args: any[]) => any
+    send: (...args: any[]) => any
+    invoke: (...args: any[]) => any
+    openPdfFile: () => Promise<{ buffer: number[]; fileName: string } | null>
+  }
 }
