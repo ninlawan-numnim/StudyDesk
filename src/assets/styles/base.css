@@ -1,49 +1,27 @@
-/* Import variables first — ทุก style file ต้องเห็น variables */
-@import './variables.css';
+/* src/assets/styles/base.css  (or style.css in root) */
+/* Global reset — WorkspaceLayout.vue handles all app-level design tokens */
 
-*,
-*::before,
-*::after {
+*, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-html,
-body,
-#app {
-  height: 100%;
+html, body, #app {
   width: 100%;
-  overflow: hidden; /* Electron window — ไม่ให้ scroll ที่ body level */
-}
-
-body {
-  font-family: var(--font-sans);
-  font-size: var(--font-size-base);
-  color: var(--color-text-primary);
-  background-color: var(--color-bg-primary);
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Georgia', 'Palatino Linotype', serif;
+  background: #F5F0E8;
+  color: #1E2D1C;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-button {
-  font-family: inherit;
-  cursor: pointer;
-  border: none;
-  outline: none;
-}
-
-/* Scrollbar styling — ให้ดูดีใน Electron */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: var(--color-bg-secondary);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--color-divider);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
+/* Remove Vite default centering on #app */
+#app {
+  max-width: unset;
+  margin: unset;
+  padding: unset;
+  text-align: unset;
 }

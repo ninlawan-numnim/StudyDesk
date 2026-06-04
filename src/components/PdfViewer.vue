@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
 import * as pdfjsLib from 'pdfjs-dist'
+import { ref, shallowRef, watch } from 'vue'
 
-// ── Worker Setup ──────────────────────────────────────
-// data URI เปล่า = ไม่มี worker จริง = run บน main thread
-// ไม่มี network request เกิดขึ้นเลย แก้ปัญหา SSL -101
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'data:application/javascript,'
+// ── Polyfill for Promise.try (TypeScript Safe) ──────────────────────────
+// ช่วยให้รันบน Electron/Chromium เวอร์ชันเก่าได้โดยไม่เกิดข้อผิดพลาด Uncaught TypeError
+if (typeof (Promise as any).try !== 'function') {
+  (Promise as any).try = function (fn: (...args: any[]) => any, ...args: any[]) {
+    return new Promise((resolve, reject) => {
+      try {
+        resolve(fn(...args));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
+}
 
 // ── Props ─────────────────────────────────────────────
 const props = defineProps<{
@@ -22,8 +31,7 @@ const currentPage = ref(1)
 const totalPages = ref(0)
 const isLoading = ref(false)
 const errorMessage = ref('')
-const pdfDoc = ref<pdfjsLib.PDFDocumentProxy | null>(null)
-
+const pdfDoc = shallowRef<pdfjsLib.PDFDocumentProxy | null>(null)
 // ── Render ────────────────────────────────────────────
 async function renderPage(pageNum: number) {
   if (!pdfDoc.value || !canvasRef.value) return
@@ -41,7 +49,6 @@ async function renderPage(pageNum: number) {
     await page.render({
       canvasContext: ctx,
       viewport,
-      canvas,
     }).promise
 
     emit('pageChanged', pageNum)
@@ -64,14 +71,14 @@ watch(
     try {
       const uint8 = new Uint8Array(newBuffer)
 
-      // ลบ disableWorker ออก — ไม่มีใน pdfjs v4 แล้ว
-      // ใช้ useWorkerFetch: false และ useSystemFonts: true แทน
-      // เพื่อป้องกัน network request ทุกชนิด
       pdfDoc.value = await pdfjsLib.getDocument({
         data: uint8,
-        disableStream: true,
-        useWorkerFetch: false,
-        useSystemFonts: true,
+        useWorkerFetch: false,   // ปิด worker fetch
+        useSystemFonts: true,    // ใช้ system fonts แทน fetch
+        disableStream: true,     // ปิด streaming
+        cMapUrl: '/',            // '/' = ไม่ fetch cMap จาก network
+        cMapPacked: true,
+        standardFontDataUrl: '/', // '/' = ไม่ fetch standard fonts จาก network
       }).promise
 
       totalPages.value = pdfDoc.value.numPages
@@ -94,29 +101,24 @@ async function goToPage(delta: number) {
 
 <template>
   <div class="pdf-viewer">
-    <!-- Empty state -->
     <div v-if="!pdfBuffer && !errorMessage" class="pdf-viewer__empty">
       <div class="pdf-viewer__empty-icon">📄</div>
       <p class="pdf-viewer__empty-text">Open a PDF file to begin</p>
       <p class="pdf-viewer__empty-hint">Use the toolbar button above</p>
     </div>
 
-    <!-- Error state -->
     <div v-if="errorMessage" class="pdf-viewer__error">
       <span>⚠️ {{ errorMessage }}</span>
     </div>
 
-    <!-- Loading overlay -->
     <div v-if="isLoading" class="pdf-viewer__loading">
       <span>Rendering...</span>
     </div>
 
-    <!-- Canvas -->
     <div v-if="pdfBuffer" class="pdf-viewer__canvas-wrapper">
       <canvas ref="canvasRef" class="pdf-viewer__canvas" />
     </div>
 
-    <!-- Page controls -->
     <div v-if="totalPages > 0" class="pdf-viewer__controls">
       <button
         class="pdf-viewer__btn"
