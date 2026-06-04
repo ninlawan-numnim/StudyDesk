@@ -1,7 +1,7 @@
 // src/main.ts
 import { createApp } from 'vue'
 import './assets/styles/base.css'
-import App from '../src/App.vue'
+import App from './App.vue'
 
 import * as pdfjsLib from 'pdfjs-dist'
 
