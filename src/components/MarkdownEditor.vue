@@ -4,6 +4,7 @@
  *
  * Markdown editor ใช้ CodeMirror 6
  * expose getCursorIndex() ให้ parent เรียกได้ — สำหรับ Feature 2 (Session Recovery)
+ * expose insertAtCursor()  — สำหรับ Feature 4 (Visual Reference Embedding)
  * ใช้ defineModel สำหรับ two-way binding กับ parent
  */
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
@@ -14,8 +15,8 @@ import { EditorState } from '@codemirror/state'
 // --- Two-way binding กับ parent ---
 const content = defineModel<string>({ default: '' })
 
-// --- Expose cursor index ให้ parent ดึงไปเก็บ DB ใน Feature 2 ---
-defineExpose({ getCursorIndex })
+// --- Expose ให้ parent เรียก ---
+defineExpose({ getCursorIndex, insertAtCursor })
 
 const editorContainerRef = ref<HTMLDivElement | null>(null)
 let editorView: EditorView | null = null
@@ -24,6 +25,25 @@ let editorView: EditorView | null = null
 function getCursorIndex(): number {
   if (!editorView) return 0
   return editorView.state.selection.main.head
+}
+
+/**
+ * insertAtCursor — Feature 4: Visual Reference Embedding
+ * แทรก text ที่ตำแหน่ง cursor ปัจจุบัน แล้วเลื่อน cursor ไปหลัง text ที่แทรก
+ */
+function insertAtCursor(text: string): void {
+  if (!editorView) return
+  const pos = editorView.state.selection.main.head
+  // เพิ่ม newline ก่อนและหลัง ถ้า cursor ไม่ได้อยู่ต้นบรรทัด
+  const doc = editorView.state.doc.toString()
+  const before = pos > 0 && doc[pos - 1] !== '\n' ? '\n' : ''
+  const after  = '\n'
+  const insert = `${before}${text}${after}`
+  editorView.dispatch({
+    changes: { from: pos, insert },
+    selection: { anchor: pos + insert.length },
+  })
+  editorView.focus()
 }
 
 onMounted(() => {
@@ -45,7 +65,7 @@ onMounted(() => {
   '.cm-content': {
     padding: 'var(--spacing-md)',
     caretColor: 'var(--color-accent)',
-    lineHeight: '1.7',        // ← เพิ่ม line height อ่านสบายขึ้น
+    lineHeight: '1.7',
   },
   '.cm-gutters': {
     backgroundColor: 'var(--color-bg-secondary)',
@@ -59,7 +79,7 @@ onMounted(() => {
     color: 'var(--color-text-secondary)',
   },
   '.cm-activeLine': {
-    backgroundColor: 'rgba(94, 175, 214, 0.06)',  // accent สีฟ้า subtle มาก
+    backgroundColor: 'rgba(94, 175, 214, 0.06)',
   },
   '.cm-cursor': {
     borderLeftColor: 'var(--color-accent)',
@@ -95,7 +115,6 @@ onBeforeUnmount(() => {
 })
 
 // Watch ถ้า parent เปลี่ยน content จากภายนอก (เช่น Session Recovery โหลดข้อมูลจาก DB)
-// จะ sync เข้า editor โดยไม่ trigger updateListener วนซ้ำ
 watch(
   () => content.value,
   (newVal) => {
@@ -145,12 +164,9 @@ watch(
   font-family: var(--font-sans);
 }
 
-/* Container ที่ CodeMirror จะ inject ตัวเองเข้ามา */
 .markdown-editor__container {
   flex: 1;
   overflow: hidden;
-  /* ต้องใช้ :deep() เพราะ CodeMirror inject DOM จาก JS
-     ไม่ใช่ template ของเรา — scoped hash จะไม่ถูก apply อัตโนมัติ */
   :deep(.cm-editor) {
     height: 100%;
   }
