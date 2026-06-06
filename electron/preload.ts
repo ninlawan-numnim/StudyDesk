@@ -25,4 +25,5 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   // Feature 2 — Session Recovery (SRS-2.1.1, SRS-2.2.1)
   saveSession: (data: object) => ipcRenderer.invoke('session:save', data),
   loadSession: ()             => ipcRenderer.invoke('session:load'),
+  getByPath: (path: string) => ipcRenderer.invoke('session:getByPath', path),
 })

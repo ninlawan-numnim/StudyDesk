@@ -51,5 +51,10 @@ interface Window {
       last_updated:     string
       markdown_content: string
     } | null>
+
+    invoke: (...args: any[]) => any,
+    
+    // 🛠️ เพิ่มบรรทัดนี้
+    getByPath: (path: string) => Promise<any>
   }
 }
