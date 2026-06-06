@@ -10,10 +10,10 @@
  * URS-4.1: Drag-and-drop / file-picker JPEG & PNG → insert into notes
  * URS-4.2: Preview panel renders embedded images via marked
  */
-import { ref, computed } from 'vue'
 import PdfViewer       from './PdfViewer.vue'
 import MarkdownEditor  from './MarkdownEditor.vue'
 import ImageEmbedPanel from './ImageEmbedPanel.vue'
+import { ref, computed, onMounted, watch } from 'vue'
 
 // ── Feature 1 ─────────────────────────────────────────────────────
 const pdfBuffer       = ref<number[] | null>(null)
@@ -21,6 +21,12 @@ const pdfFileName     = ref<string>('')
 const markdownContent = ref<string>('')
 const errorMessage    = ref<string>('')
 const currentPage     = ref<number>(1)
+const pdfFilePath = ref<string>('') 
+
+// ── Feature 2: Session Recovery state ────────────────
+const isRestoring = ref(false)  // ป้องกัน save ขณะกำลัง restore
+
+
 
 let errorTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -40,6 +46,7 @@ async function handleOpenFile() {
   }
   pdfBuffer.value   = result.buffer
   pdfFileName.value = result.fileName
+  pdfFilePath.value = result.filePath
 }
 
 function handlePageChanged(page: number) {
@@ -87,6 +94,84 @@ function renderMarkdown(md: string): string {
 }
 
 const previewHtml = computed(() => renderMarkdown(markdownContent.value))
+
+// ── Restore session on mount — SRS-2.2.1 ─────────────
+onMounted(async () => {
+  isRestoring.value = true
+  try {
+    const session = await window.ipcRenderer.loadSession()
+
+    if (!session) {
+      isRestoring.value = false
+      return
+    }
+
+    // Restore markdown content ก่อนเสมอ
+    if (session.markdown_content) {
+      markdownContent.value = session.markdown_content
+    }
+
+    // Restore PDF — ต้องโหลดไฟล์จาก path ที่เก็บไว้
+    if (session.pdf_file_path) {
+      try {
+        // อ่านไฟล์ผ่าน IPC เหมือนตอน open ปกติ
+        // แต่ใช้ path โดยตรงแทนที่จะเปิด dialog
+        const buffer = await window.ipcRenderer.invoke(
+          'file:readByPath',
+          session.pdf_file_path
+        )
+        if (buffer) {
+          pdfBuffer.value   = buffer
+          pdfFileName.value = session.pdf_file_path.split(/[\\/]/).pop() ?? ''
+          // stored page จะถูก restore ใน PdfViewer ผ่าน prop
+          restoredPage.value = session.current_page
+        }
+      } catch {
+        // ไฟล์อาจถูกลบหรือย้ายไปแล้ว — ไม่ error หน้า UI
+        console.warn('[Session] PDF file not found:', session.pdf_file_path)
+      }
+    }
+
+    // Restore cursor — ส่งให้ editor หลัง mount เสร็จ
+    if (session.cursor_index > 0) {
+      setTimeout(() => {
+        editorRef.value?.restoreCursor(session.cursor_index)
+      }, 100)
+    }
+  } finally {
+    isRestoring.value = false
+  }
+})
+
+// ── Track restored page สำหรับส่งให้ PdfViewer ────────
+const restoredPage = ref(1)
+
+// ── Auto-save — SRS-2.1.1 ────────────────────────────
+// debounce เพื่อไม่ให้ save ทุก keystroke
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleSave() {
+  if (isRestoring.value) return  // ไม่ save ขณะ restore
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(doSave, 1000)  // debounce 1 วินาที
+}
+
+async function doSave() {
+  if (!pdfBuffer.value && !markdownContent.value) return
+
+  await window.ipcRenderer.saveSession({
+    pdf_file_path:    pdfFileName.value
+      ? await window.ipcRenderer.invoke('file:resolvePath', pdfFileName.value)
+      : '',
+    current_page:     currentPage.value,
+    cursor_index:     editorRef.value?.getCursorIndex() ?? 0,
+    markdown_content: markdownContent.value,
+  })
+}
+
+// Watch ทุก state ที่ต้องการ save
+watch([markdownContent, currentPage], scheduleSave)
+
 </script>
 
 <template>
@@ -113,7 +198,11 @@ const previewHtml = computed(() => renderMarkdown(markdownContent.value))
 
       <!-- Left: PDF Viewer -->
       <section class="workspace__pane">
-        <PdfViewer :pdf-buffer="pdfBuffer" @page-changed="handlePageChanged" />
+        <PdfViewer
+  :pdf-buffer="pdfBuffer"
+  :initial-page="restoredPage"
+  @page-changed="handlePageChanged"
+/>
       </section>
 
       <div class="workspace__divider" />
