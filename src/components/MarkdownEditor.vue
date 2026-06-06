@@ -14,6 +14,7 @@ import { EditorState } from '@codemirror/state'
 
 // --- Two-way binding กับ parent ---
 const content = defineModel<string>({ default: '' })
+const emit = defineEmits<{ 'cursor-moved': [] }>()
 
 const editorContainerRef = ref<HTMLDivElement | null>(null)
 let editorView: EditorView | null = null
@@ -96,6 +97,9 @@ onMounted(() => {
         if (update.docChanged) {
           content.value = update.state.doc.toString()
         }
+        if (update.selectionSet) {
+    emit('cursor-moved')
+  }
       }),
     ],
   })

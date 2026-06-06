@@ -268,7 +268,11 @@ watch([markdownContent, currentPage], scheduleSave)
 
         <!-- Write tab: Markdown Editor -->
         <div v-show="activeTab === 'write'" class="workspace__editor-area">
-          <MarkdownEditor ref="editorRef" v-model="markdownContent" />
+          <MarkdownEditor 
+                  ref="editorRef" 
+                  v-model="markdownContent" 
+                  @cursor-moved="scheduleSave" 
+/>
         </div>
 
         <!-- Preview tab: Rendered markdown — URS-4.2 -->
