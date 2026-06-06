@@ -122,8 +122,7 @@ onMounted(async () => {
         )
         if (buffer) {
           pdfBuffer.value   = buffer
-          pdfFileName.value = session.pdf_file_path.split(/[\\/]/).pop() ?? ''
-          // stored page จะถูก restore ใน PdfViewer ผ่าน prop
+          pdfFilePath.value = session.pdf_file_path
           restoredPage.value = session.current_page
         }
       } catch {
@@ -160,9 +159,7 @@ async function doSave() {
   if (!pdfBuffer.value && !markdownContent.value) return
 
   await window.ipcRenderer.saveSession({
-    pdf_file_path:    pdfFileName.value
-      ? await window.ipcRenderer.invoke('file:resolvePath', pdfFileName.value)
-      : '',
+    pdf_file_path:    pdfFilePath.value || '', 
     current_page:     currentPage.value,
     cursor_index:     editorRef.value?.getCursorIndex() ?? 0,
     markdown_content: markdownContent.value,
