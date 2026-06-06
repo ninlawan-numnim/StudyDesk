@@ -15,9 +15,6 @@ import { EditorState } from '@codemirror/state'
 // --- Two-way binding กับ parent ---
 const content = defineModel<string>({ default: '' })
 
-// --- Expose ให้ parent เรียก ---
-defineExpose({ getCursorIndex, insertAtCursor })
-
 const editorContainerRef = ref<HTMLDivElement | null>(null)
 let editorView: EditorView | null = null
 
@@ -127,6 +124,20 @@ watch(
     }
   }
 )
+
+defineExpose({ getCursorIndex, insertAtCursor, restoreCursor })
+
+// restore cursor position — SRS-2.3
+function restoreCursor(index: number): void {
+  if (!editorView) return
+  const docLength = editorView.state.doc.length
+  const safeIndex = Math.min(index, docLength)
+  editorView.dispatch({
+    selection: { anchor: safeIndex },
+  })
+  editorView.focus()
+}
+
 </script>
 
 <template>
