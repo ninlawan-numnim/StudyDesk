@@ -10,7 +10,8 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { saveSession, loadSession, closeDb } from './database'
 
 const require = createRequire(import.meta.url)
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -112,13 +113,6 @@ ipcMain.handle('file:readByPath', (_event, filePath: string) => {
   } catch {
     return null
   }
-})
-
-// resolve full path จาก filename (สำหรับ save session)
-ipcMain.handle('file:resolvePath', (_event, fileName: string) => {
-  // WorkspaceLayout เก็บแค่ชื่อไฟล์ ไม่มี full path
-  // ต้องแก้ให้เก็บ full path ใน pdfFilePath แทน
-  return fileName
 })
 
 app.whenReady().then(createWindow)
