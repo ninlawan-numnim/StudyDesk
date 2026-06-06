@@ -82,16 +82,11 @@ function initSchema(database: Database.Database): void {
  * บันทึก session state และ markdown content ลง DB
  */
 export function saveSession(
-  data: SessionData & { markdown_content: string }
+  data: SessionData & { markdown_content: string; session_id: number }
 ): void {
   const database = getDb()
 
-  // ดึง session_id แรกเสมอ (MVP มีแค่ 1 session)
-  const session = database.prepare(
-    'SELECT session_id FROM STUDY_SESSIONS ORDER BY session_id ASC LIMIT 1'
-  ).get() as { session_id: number }
-
-  // Update session state
+  // อัปเดตตาราง STUDY_SESSIONS ตรงตาม ID
   database.prepare(`
     UPDATE STUDY_SESSIONS
     SET pdf_file_path = ?,
@@ -99,27 +94,22 @@ export function saveSession(
         cursor_index  = ?,
         last_updated  = datetime('now')
     WHERE session_id = ?
-  `).run(
-    data.pdf_file_path,
-    data.current_page,
-    data.cursor_index,
-    session.session_id
-  )
+  `).run(data.pdf_file_path, data.current_page, data.cursor_index, data.session_id)
 
-  // Update markdown content
+  // อัปเดตตาราง MARKDOWN_NOTES ตรงตาม ID
   database.prepare(`
     UPDATE MARKDOWN_NOTES
     SET content       = ?,
         last_modified = datetime('now')
     WHERE session_id = ?
-  `).run(data.markdown_content, session.session_id)
+  `).run(data.markdown_content, data.session_id)
 }
 
 /**
  * loadSession — SRS-2.2.1
  * โหลด session state และ markdown content จาก DB
  */
-export function loadSession(): (SessionData & { markdown_content: string }) | null {
+export function loadSession(): (SessionData & { markdown_content: string; session_id: number }) | null {
   const database = getDb()
 
   const session = database.prepare(`
@@ -133,11 +123,12 @@ export function loadSession(): (SessionData & { markdown_content: string }) | nu
     LEFT JOIN MARKDOWN_NOTES n ON n.session_id = s.session_id
     ORDER BY s.session_id ASC
     LIMIT 1
-  `).get() as (SessionData & { markdown_content: string; session_id: number }) | undefined
+  `).get() as any // ใช้ as any ชั่วคราวไปก่อนได้ครับ
 
   if (!session) return null
 
   return {
+    session_id:       session.session_id, // 🛠️ เพิ่มบรรทัดนี้ เพื่อส่ง ID กลับไปให้ Vue!
     pdf_file_path:    session.pdf_file_path,
     current_page:     session.current_page,
     cursor_index:     session.cursor_index,
@@ -156,6 +147,24 @@ export function getSessionByPdfPath(pdfPath: string): (SessionData & { markdown_
   `).get(pdfPath) as any
   
   return session || null
+}
+
+
+export function createSession(pdfPath: string): number {
+  const database = getDb()
+  const insertSession = database.prepare(`
+    INSERT INTO STUDY_SESSIONS (pdf_file_path, current_page, cursor_index)
+    VALUES (?, 1, 0)
+  `)
+  const sessionResult = insertSession.run(pdfPath)
+  const sessionId = sessionResult.lastInsertRowid as number
+
+  database.prepare(`
+    INSERT INTO MARKDOWN_NOTES (session_id, content)
+    VALUES (?, '')
+  `).run(sessionId)
+
+  return sessionId
 }
 
 /**

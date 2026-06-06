@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
-import { saveSession, loadSession, closeDb, getSessionByPdfPath } from './database'
+import { saveSession, loadSession, closeDb, getSessionByPdfPath, createSession } from './database'
 
 const require = createRequire(import.meta.url)
 const __filename = fileURLToPath(import.meta.url)
@@ -120,6 +120,17 @@ ipcMain.handle('session:getByPath', (_event, pdfPath: string) => {
     return getSessionByPdfPath(pdfPath)
   } catch (e) {
     console.error('[DB] getSessionByPdfPath error:', e)
+    return null
+  }
+})
+
+
+ipcMain.handle('session:create', (_event, pdfPath: string) => {
+  try {
+    const sessionId = createSession(pdfPath)
+    return { session_id: sessionId }
+  } catch (e) {
+    console.error('[DB] createSession error:', e)
     return null
   }
 })

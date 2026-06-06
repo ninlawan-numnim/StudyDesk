@@ -25,6 +25,7 @@ const pdfFilePath = ref<string>('')
 
 // ── Feature 2: Session Recovery state ────────────────
 const isRestoring = ref(false)  // ป้องกัน save ขณะกำลัง restore
+const currentSessionId = ref<number | null>(null)
 
 
 
@@ -40,23 +41,22 @@ async function handleOpenFile() {
   const result = await window.ipcRenderer.openPdfFile()
   if (!result) return
   
-  // 1. อัปเดต state ปัจจุบัน
   pdfBuffer.value = result.buffer
   pdfFilePath.value = result.filePath
   pdfFileName.value = result.fileName
 
-  // 2. 🛠️ ตรวจสอบใน DB ว่าไฟล์นี้มีโน๊ตอยู่แล้วไหม
   const existingSession = await window.ipcRenderer.invoke('session:getByPath', result.filePath)
   
   if (existingSession) {
-    // ถ้ามีโน๊ตเก่า ก็โหลดมาใช้
     markdownContent.value = existingSession.markdown_content
     currentPage.value = existingSession.current_page
-    // (restore cursor ถ้าต้องการ)
+    currentSessionId.value = existingSession.session_id // 🛠️ เก็บ ID เดิมไว้
   } else {
-    // ถ้าไม่เคยเปิดมาก่อน ก็เคลียร์โน๊ตใหม่
+    // 🛠️ ถ้าไม่เคยเปิดมาก่อน ให้สร้างใหม่เลย
+    const newSession = await window.ipcRenderer.invoke('session:create', result.filePath)
     markdownContent.value = ''
     currentPage.value = 1
+    currentSessionId.value = newSession.session_id // 🛠️ เก็บ ID ใหม่ไว้
   }
 }
 
@@ -110,12 +110,13 @@ const previewHtml = computed(() => renderMarkdown(markdownContent.value))
 onMounted(async () => {
   isRestoring.value = true
   try {
-    const session = await window.ipcRenderer.loadSession()
+   const session = await window.ipcRenderer.loadSession()
 
     if (!session) {
       isRestoring.value = false
       return
     }
+    currentSessionId.value = session.session_id
 
     // Restore markdown content ก่อนเสมอ
     if (session.markdown_content) {
@@ -168,14 +169,19 @@ function scheduleSave() {
 
 async function doSave() {
   if (!pdfBuffer.value && !markdownContent.value) return
+  
+  // ป้องกันการเซฟมั่ว ถ้าเปิดแอปมาแล้วยังไม่มี Session ID ให้หยุดทำงานก่อน
+  if (!currentSessionId.value) return 
 
   await window.ipcRenderer.saveSession({
+    session_id:       currentSessionId.value, // 🛠️ แนบ ID ส่งไปแล้ว!
     pdf_file_path:    pdfFilePath.value || '', 
     current_page:     currentPage.value,
     cursor_index:     editorRef.value?.getCursorIndex() ?? 0,
     markdown_content: markdownContent.value,
   })
 }
+
 
 // Watch ทุก state ที่ต้องการ save
 watch([markdownContent, currentPage], scheduleSave)

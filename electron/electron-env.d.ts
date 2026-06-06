@@ -38,6 +38,7 @@ interface Window {
 
     // Feature 2 — Session Recovery
     saveSession: (data: {
+      session_id:       number
       pdf_file_path:    string
       current_page:     number
       cursor_index:     number
@@ -45,6 +46,7 @@ interface Window {
     }) => Promise<{ success: boolean }>
 
     loadSession: () => Promise<{
+      session_id:       number
       pdf_file_path:    string
       current_page:     number
       cursor_index:     number
@@ -53,8 +55,7 @@ interface Window {
     } | null>
 
     invoke: (...args: any[]) => any,
-    
-    // 🛠️ เพิ่มบรรทัดนี้
     getByPath: (path: string) => Promise<any>
+    createSession: (path: string) => Promise<any>
   }
 }
