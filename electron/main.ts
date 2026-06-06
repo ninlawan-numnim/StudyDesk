@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { saveSession, loadSession, closeDb } from './database'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -78,6 +79,31 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
   }
+})
+
+ipcMain.handle('session:save', (_event, data) => {
+  try {
+    saveSession(data)
+    return { success: true }
+  } catch (e) {
+    console.error('[DB] saveSession error:', e)
+    return { success: false }
+  }
+})
+
+ipcMain.handle('session:load', () => {
+  try {
+    return loadSession()
+  } catch (e) {
+    console.error('[DB] loadSession error:', e)
+    return null
+  }
+})
+
+// ── Flush DB เมื่อ app กำลังปิด ──────────────────────
+// before-quit fires ก่อนที่ window จะถูก destroy
+app.on('before-quit', () => {
+  closeDb()
 })
 
 app.whenReady().then(createWindow)
