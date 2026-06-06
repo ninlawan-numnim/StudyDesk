@@ -19,6 +19,7 @@ if (typeof (Promise as any).try !== 'function') {
 // ── Props ─────────────────────────────────────────────
 const props = defineProps<{
   pdfBuffer: number[] | null
+  initialPage: number 
 }>()
 
 const emit = defineEmits<{
@@ -66,6 +67,11 @@ watch(
     errorMessage.value = ''
     currentPage.value = 1
     totalPages.value = 0
+
+    // 🛠️ FIX 3: ป้องกัน Memory Leak โดยการ Destroy instance เก่าก่อนเสมอ
+    if (pdfDoc.value) {
+      await pdfDoc.value.destroy()
+    }
     pdfDoc.value = null
 
     try {
@@ -81,8 +87,15 @@ watch(
         standardFontDataUrl: '/', // '/' = ไม่ fetch standard fonts จาก network
       }).promise
 
+      // 🛠️ FIX 1: อัปเดตจำนวนหน้าทั้งหมด (Total Pages) ให้ UI แสดงผลได้ถูกต้อง
       totalPages.value = pdfDoc.value.numPages
-      await renderPage(1)
+
+      // 🛠️ FIX 2: เปลี่ยนมาใช้ props.restoredPage ให้ตรงกับที่ Parent Component ส่งมา
+      const startPage = props.initialPage ?? 1
+      currentPage.value = startPage
+      
+      await renderPage(startPage)
+      
     } catch (e) {
       errorMessage.value = 'Failed to load PDF. The file may be corrupted.'
       console.error('[PdfViewer] Load error:', e)
