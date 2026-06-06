@@ -121,7 +121,7 @@ export function loadSession(): (SessionData & { markdown_content: string; sessio
            n.content as markdown_content
     FROM STUDY_SESSIONS s
     LEFT JOIN MARKDOWN_NOTES n ON n.session_id = s.session_id
-    ORDER BY s.session_id ASC
+    ORDER BY s.last_updated DESC
     LIMIT 1
   `).get() as any // ใช้ as any ชั่วคราวไปก่อนได้ครับ
 
