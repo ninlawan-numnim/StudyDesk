@@ -146,6 +146,18 @@ export function loadSession(): (SessionData & { markdown_content: string }) | nu
   }
 }
 
+export function getSessionByPdfPath(pdfPath: string): (SessionData & { markdown_content: string }) | null {
+  const database = getDb()
+  const session = database.prepare(`
+    SELECT s.session_id, s.pdf_file_path, s.current_page, s.cursor_index, n.content as markdown_content
+    FROM STUDY_SESSIONS s
+    LEFT JOIN MARKDOWN_NOTES n ON n.session_id = s.session_id
+    WHERE s.pdf_file_path = ?
+  `).get(pdfPath) as any
+  
+  return session || null
+}
+
 /**
  * closeDb — เรียกตอน app ปิด เพื่อ flush WAL buffer
  */

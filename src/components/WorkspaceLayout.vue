@@ -37,16 +37,27 @@ function showError(msg: string) {
 }
 
 async function handleOpenFile() {
-  errorMessage.value = ''
   const result = await window.ipcRenderer.openPdfFile()
   if (!result) return
-  if (!result.fileName.toLowerCase().endsWith('.pdf')) {
-    showError('Unsupported file format')
-    return
-  }
-  pdfBuffer.value   = result.buffer
-  pdfFileName.value = result.fileName
+  
+  // 1. อัปเดต state ปัจจุบัน
+  pdfBuffer.value = result.buffer
   pdfFilePath.value = result.filePath
+  pdfFileName.value = result.fileName
+
+  // 2. 🛠️ ตรวจสอบใน DB ว่าไฟล์นี้มีโน๊ตอยู่แล้วไหม
+  const existingSession = await window.ipcRenderer.invoke('session:getByPath', result.filePath)
+  
+  if (existingSession) {
+    // ถ้ามีโน๊ตเก่า ก็โหลดมาใช้
+    markdownContent.value = existingSession.markdown_content
+    currentPage.value = existingSession.current_page
+    // (restore cursor ถ้าต้องการ)
+  } else {
+    // ถ้าไม่เคยเปิดมาก่อน ก็เคลียร์โน๊ตใหม่
+    markdownContent.value = ''
+    currentPage.value = 1
+  }
 }
 
 function handlePageChanged(page: number) {
