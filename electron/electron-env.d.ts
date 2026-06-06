@@ -24,11 +24,17 @@ declare namespace NodeJS {
 // Used in Renderer process, expose in `preload.ts`
 interface Window {
   ipcRenderer: {
-    on:         (...args: any[]) => any
-    off:        (...args: any[]) => any
-    send:       (...args: any[]) => any
-    invoke:     (...args: any[]) => any
-    openPdfFile: () => Promise<{ buffer: number[]; fileName: string } | null>
+    on:      (...args: any[]) => any
+    off:     (...args: any[]) => any
+    send:    (...args: any[]) => any
+    invoke:  (...args: any[]) => any
+
+    // Feature 1 — เพิ่ม filePath ใน return type
+    openPdfFile: () => Promise<{
+      buffer:   number[]
+      fileName: string
+      filePath: string    // ← เพิ่มบรรทัดนี้
+    } | null>
 
     // Feature 2 — Session Recovery
     saveSession: (data: {
