@@ -1,32 +1,25 @@
 <script setup lang="ts">
-/**
- * ImageEmbedPanel.vue — Feature 4: Visual Reference Embedding
- *
- * URS-4.1: Drag-and-drop JPEG/PNG images into markdown notes
- * URS-4.2: View embedded images seamlessly alongside written text
- *
- * Emits:
- *   insert-image(markdownText: string) — parent (WorkspaceLayout) จะนำไปแทรก
- *                                         ใน MarkdownEditor ที่ cursor ปัจจุบัน
- */
 import { ref } from 'vue'
 
 const emit = defineEmits<{
   'insert-image': [markdown: string]
 }>()
 
-const isDragging = ref(false)
-const errorMsg   = ref('')
+const isDragging  = ref(false)
+const errorMsg    = ref('')
 
-// ─────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────
+// ── Image size selector ───────────────────────────────────────────
+const SIZE_OPTIONS = [
+  { label: 'Small', value: 'small',  width: 200 },
+  { label: 'Medium', value: 'medium', width: 400 },
+  { label: 'Large', value: 'large',  width: 700 },
+] as const
 
+type SizeValue = typeof SIZE_OPTIONS[number]['value']
+const selectedSize = ref<SizeValue>('medium')
+
+// ── Helpers ───────────────────────────────────────────────────────
 const ALLOWED = ['image/jpeg', 'image/png']
-
-function isAllowed(file: File): boolean {
-  return ALLOWED.includes(file.type)
-}
 
 function toBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -43,35 +36,25 @@ function showError(msg: string) {
 }
 
 async function processFile(file: File) {
-  if (!isAllowed(file)) {
+  if (!ALLOWED.includes(file.type)) {
     showError('Only JPEG and PNG files are supported.')
     return
   }
-
   try {
     const dataUrl  = await toBase64(file)
     const safeName = file.name.replace(/[^\w.\-]/g, '_')
-    // Standard Markdown image syntax — URS-4.2
-    const markdown = `![${safeName}](${dataUrl})`
+    const width    = SIZE_OPTIONS.find(o => o.value === selectedSize.value)!.width
+    // ใช้ HTML img tag แทน markdown syntax เพื่อกำหนด width ได้
+    const markdown = `<img src="${dataUrl}" alt="${safeName}" width="${width}" />`
     emit('insert-image', markdown)
   } catch {
     showError('Failed to read the image file.')
   }
 }
 
-// ─────────────────────────────────────────────────────
-// Drag-and-drop handlers — URS-4.1
-// ─────────────────────────────────────────────────────
-
-function onDragOver(e: DragEvent) {
-  e.preventDefault()
-  isDragging.value = true
-}
-
-function onDragLeave() {
-  isDragging.value = false
-}
-
+// ── Drag-and-drop ─────────────────────────────────────────────────
+function onDragOver(e: DragEvent) { e.preventDefault(); isDragging.value = true }
+function onDragLeave() { isDragging.value = false }
 async function onDrop(e: DragEvent) {
   e.preventDefault()
   isDragging.value = false
@@ -79,10 +62,7 @@ async function onDrop(e: DragEvent) {
   if (file) await processFile(file)
 }
 
-// ─────────────────────────────────────────────────────
-// File-picker button handler — URS-4.1
-// ─────────────────────────────────────────────────────
-
+// ── File picker ───────────────────────────────────────────────────
 async function onUploadClick() {
   const input = document.createElement('input')
   input.type   = 'file'
@@ -97,12 +77,24 @@ async function onUploadClick() {
 
 <template>
   <div class="iep">
-    <!-- Header -->
     <div class="iep__header">
       <span class="iep__title">🖼 Insert Image</span>
+
+      <!-- Size selector -->
+      <div class="iep__sizes">
+        <button
+          v-for="opt in SIZE_OPTIONS"
+          :key="opt.value"
+          class="iep__size-btn"
+          :class="{ 'iep__size-btn--active': selectedSize === opt.value }"
+          @click="selectedSize = opt.value"
+        >
+          {{ opt.label }}
+          <span class="iep__size-px">{{ opt.width }}px</span>
+        </button>
+      </div>
     </div>
 
-    <!-- Drop zone + upload button -->
     <div
       class="iep__body"
       :class="{ 'iep__body--dragging': isDragging }"
@@ -137,6 +129,7 @@ async function onUploadClick() {
 .iep__header {
   display: flex;
   align-items: center;
+  gap: 12px;
   padding: var(--spacing-xs) var(--spacing-md);
   background: var(--color-bg-toolbar);
   border-bottom: 1px solid var(--color-divider);
@@ -147,6 +140,45 @@ async function onUploadClick() {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+/* Size selector */
+.iep__sizes {
+  display: flex;
+  gap: 4px;
+}
+
+.iep__size-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--cream-dark);
+  border: 1.5px solid var(--cream-mid);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  color: var(--text-mid);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+
+.iep__size-btn:hover {
+  background: var(--green-pale);
+  border-color: var(--green-light);
+  color: var(--green-deep);
+}
+
+.iep__size-btn--active {
+  background: var(--green-deep);
+  border-color: var(--green-deep);
+  color: var(--cream);
+}
+
+.iep__size-px {
+  font-size: 0.68rem;
+  opacity: .7;
 }
 
 /* Body */
@@ -167,7 +199,6 @@ async function onUploadClick() {
   outline-offset: -6px;
 }
 
-/* Drop zone box */
 .iep__drop-zone {
   display: flex;
   flex-direction: column;
@@ -176,18 +207,16 @@ async function onUploadClick() {
   gap: 6px;
   width: 100%;
   max-width: 220px;
-  min-height: 120px;
+  min-height: 100px;
   border: 2px dashed var(--color-divider);
   border-radius: var(--border-radius);
   padding: var(--spacing-md);
   text-align: center;
   background: var(--cream-dark);
-  pointer-events: none; /* drop events handled on .iep__body */
+  pointer-events: none;
 }
 
-.iep__drop-icon {
-  font-size: 1.6rem;
-}
+.iep__drop-icon { font-size: 1.4rem; }
 
 .iep__drop-label {
   font-size: var(--font-size-sm);
@@ -202,28 +231,22 @@ async function onUploadClick() {
   font-family: var(--font-sans);
 }
 
-/* Upload button */
 .iep__upload-btn {
   background: var(--color-btn-bg);
   color: var(--cream);
   border: none;
   border-radius: var(--border-radius);
-  padding: 7px 20px;
+  padding: 6px 18px;
   font-size: var(--font-size-sm);
   font-family: var(--font-sans);
   cursor: pointer;
   transition: background 0.2s;
 }
+.iep__upload-btn:hover { background: var(--color-btn-hover); }
 
-.iep__upload-btn:hover {
-  background: var(--color-btn-hover);
-}
-
-/* Error */
 .iep__error {
   font-size: 0.75rem;
   color: var(--color-error);
   font-family: var(--font-sans);
-  text-align: center;
 }
 </style>
