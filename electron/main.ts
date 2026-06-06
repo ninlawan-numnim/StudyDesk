@@ -39,12 +39,10 @@ ipcMain.handle('dialog:openPdf', async () => {
   if (canceled || filePaths.length === 0) return null
 
   const filePath = filePaths[0]
-
-  // แปลงเป็น number[] เพราะ Buffer serialize ผ่าน IPC ไม่สมบูรณ์
-  const buffer = Array.from(fs.readFileSync(filePath))
+  const buffer   = Array.from(fs.readFileSync(filePath))
   const fileName = filePath.split(/[\\/]/).pop() ?? 'document.pdf'
 
-  return { buffer, fileName }
+  return { buffer, fileName, filePath }  // ← return filePath ด้วย
 })
 
 // ─────────────────────────────────────────────────────
@@ -104,6 +102,23 @@ ipcMain.handle('session:load', () => {
 // before-quit fires ก่อนที่ window จะถูก destroy
 app.on('before-quit', () => {
   closeDb()
+})
+
+// อ่านไฟล์จาก path โดยตรง (สำหรับ session restore)
+ipcMain.handle('file:readByPath', (_event, filePath: string) => {
+  try {
+    if (!fs.existsSync(filePath)) return null
+    return Array.from(fs.readFileSync(filePath))
+  } catch {
+    return null
+  }
+})
+
+// resolve full path จาก filename (สำหรับ save session)
+ipcMain.handle('file:resolvePath', (_event, fileName: string) => {
+  // WorkspaceLayout เก็บแค่ชื่อไฟล์ ไม่มี full path
+  // ต้องแก้ให้เก็บ full path ใน pdfFilePath แทน
+  return fileName
 })
 
 app.whenReady().then(createWindow)
