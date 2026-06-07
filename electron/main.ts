@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
-import { saveSession, loadSession, closeDb, getSessionByPdfPath, createSession } from './database'
+import { saveSession, loadSession, closeDb, getSessionByPdfPath, createSession, loadWorkspaceFolder, saveWorkspaceFolder } from './database'
 
 const require = createRequire(import.meta.url)
 const __filename = fileURLToPath(import.meta.url)
@@ -30,20 +30,31 @@ let win: BrowserWindow | null
 // เพื่อให้แน่ใจว่า handler ถูก register ก่อน Renderer
 // ส่ง invoke มา
 // ─────────────────────────────────────────────────────
-ipcMain.handle('dialog:openPdf', async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
+ipcMain.handle('dialog:openPdf', async (_event, workspaceFolder: string) => {
+  const openOptions: Electron.OpenDialogOptions = {
     title: 'Open PDF File',
     filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
     properties: ['openFile'],
-  })
+  }
 
+  // ถ้ามี workspace folder ให้เริ่มที่ folder นั้นเลย
+  if (workspaceFolder && fs.existsSync(workspaceFolder)) {
+    openOptions.defaultPath = workspaceFolder
+  }
+
+  const { canceled, filePaths } = await dialog.showOpenDialog(openOptions)
   if (canceled || filePaths.length === 0) return null
 
-  const filePath = filePaths[0]
-  const buffer   = Array.from(fs.readFileSync(filePath))
-  const fileName = filePath.split(/[\\/]/).pop() ?? 'document.pdf'
+  const filePath  = filePaths[0]
+  const buffer    = Array.from(fs.readFileSync(filePath))
+  const fileName  = path.basename(filePath)
 
-  return { buffer, fileName, filePath }  // ← return filePath ด้วย
+  // คำนวณ relative path ถ้ามี workspace
+  const relativePath = workspaceFolder
+    ? path.relative(workspaceFolder, filePath)
+    : filePath   // fallback เป็น absolute ถ้ายังไม่มี workspace
+
+  return { buffer, fileName, filePath, relativePath }
 })
 
 // ─────────────────────────────────────────────────────
@@ -106,24 +117,28 @@ app.on('before-quit', () => {
 })
 
 // อ่านไฟล์จาก path โดยตรง (สำหรับ session restore)
-ipcMain.handle('file:readByPath', (_event, filePath: string) => {
+ipcMain.handle('file:readByPath', (_event, filePath: string, workspaceFolder?: string) => {
   try {
-    if (!fs.existsSync(filePath)) return null
-    return Array.from(fs.readFileSync(filePath))
+    // ถ้ามี workspaceFolder และ filePath เป็น relative — ต่อ path ก่อน
+    const resolvedPath = (workspaceFolder && !path.isAbsolute(filePath))
+      ? path.join(workspaceFolder, filePath)
+      : filePath
+
+    if (!fs.existsSync(resolvedPath)) return null
+    return Array.from(fs.readFileSync(resolvedPath))
   } catch {
     return null
   }
 })
 
-ipcMain.handle('session:getByPath', (_event, pdfPath: string) => {
-  try {
-    return getSessionByPdfPath(pdfPath)
-  } catch (e) {
-    console.error('[DB] getSessionByPdfPath error:', e)
-    return null
-  }
+ipcMain.handle('dialog:selectWorkspace', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'Select your PDF folder (Workspace)',
+    properties: ['openDirectory'],   // เลือก folder ไม่ใช่ไฟล์
+  })
+  if (canceled || filePaths.length === 0) return null
+  return filePaths[0]
 })
-
 
 ipcMain.handle('session:create', (_event, pdfPath: string) => {
   try {
@@ -131,6 +146,24 @@ ipcMain.handle('session:create', (_event, pdfPath: string) => {
     return { session_id: sessionId }
   } catch (e) {
     console.error('[DB] createSession error:', e)
+    return null
+  }
+})
+
+ipcMain.handle('settings:saveWorkspace', (_event, folder: string) => {
+  saveWorkspaceFolder(folder)
+  return { success: true }
+})
+
+ipcMain.handle('settings:loadWorkspace', () => {
+  return loadWorkspaceFolder()
+})
+
+ipcMain.handle('session:getByPath', (_event, pdfPath: string) => {
+  try {
+    return getSessionByPdfPath(pdfPath)
+  } catch (e) {
+    console.error('[DB] getSessionByPdfPath error:', e)
     return null
   }
 })

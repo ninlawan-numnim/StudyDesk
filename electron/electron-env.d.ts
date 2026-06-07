@@ -30,11 +30,12 @@ interface Window {
     invoke:  (...args: any[]) => any
 
     // Feature 1 — เพิ่ม filePath ใน return type
-    openPdfFile: () => Promise<{
-      buffer:   number[]
-      fileName: string
-      filePath: string    // ← เพิ่มบรรทัดนี้
-    } | null>
+    openPdfFile: (workspaceFolder?: string) => Promise<{
+      buffer:       number[]
+      fileName:     string
+      filePath:     string      // absolute — ใช้แค่ในเครื่อง
+      relativePath: string      // relative — เก็บลง DB
+} | null>
 
     // Feature 2 — Session Recovery
     saveSession: (data: {

@@ -6,6 +6,45 @@
 import Database from 'better-sqlite3'
 import path from 'node:path'
 import { app } from 'electron'
+import fs from 'node:fs'
+
+const SETTINGS_PATH = () => path.join(app.getPath('userData'), 'settings.json')
+
+export function saveWorkspaceFolder(folder: string): void {
+  fs.writeFileSync(
+    SETTINGS_PATH(),
+    JSON.stringify({ workspace_folder: folder }),
+    'utf-8'
+  )
+}
+
+export function loadWorkspaceFolder(): string | null {
+  try {
+    const raw = fs.readFileSync(SETTINGS_PATH(), 'utf-8')
+    return JSON.parse(raw).workspace_folder ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * แปลง absolute path → relative path เทียบกับ workspace folder
+ * ตัวอย่าง:
+ *   absolute:  C:\Users\Nim\Docs\lecture.pdf
+ *   workspace: C:\Users\Nim\Docs
+ *   relative:  lecture.pdf
+ */
+export function toRelativePath(absolutePath: string, workspaceFolder: string): string {
+  return path.relative(workspaceFolder, absolutePath)
+}
+
+/**
+ * แปลง relative path → absolute path
+ */
+export function toAbsolutePath(relativePath: string, workspaceFolder: string): string {
+  return path.join(workspaceFolder, relativePath)
+}
+
 
 // ── Types ────────────────────────────────────────────
 export interface SessionData {
@@ -39,11 +78,12 @@ function initSchema(database: Database.Database): void {
   // STUDY_SESSIONS — SRS-2.1.1
   database.exec(`
     CREATE TABLE IF NOT EXISTS STUDY_SESSIONS (
-      session_id    INTEGER PRIMARY KEY AUTOINCREMENT,
-      pdf_file_path TEXT    NOT NULL DEFAULT '',
-      current_page  INTEGER NOT NULL DEFAULT 1,
-      cursor_index  INTEGER NOT NULL DEFAULT 0,
-      last_updated  TEXT    NOT NULL DEFAULT (datetime('now'))
+      session_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+      pdf_file_path    TEXT    NOT NULL DEFAULT '',   -- relative path เท่านั้น
+      workspace_folder TEXT    NOT NULL DEFAULT '',   -- folder ที่ user เลือก
+      current_page     INTEGER NOT NULL DEFAULT 1,
+      cursor_index     INTEGER NOT NULL DEFAULT 0,
+      last_updated     TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS MARKDOWN_NOTES (
@@ -166,6 +206,7 @@ export function createSession(pdfPath: string): number {
 
   return sessionId
 }
+
 
 /**
  * closeDb — เรียกตอน app ปิด เพื่อ flush WAL buffer
