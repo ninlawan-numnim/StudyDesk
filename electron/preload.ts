@@ -27,4 +27,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   loadSession: ()             => ipcRenderer.invoke('session:load'),
   getByPath: (path: string)   => ipcRenderer.invoke('session:getByPath', path),
   createSession: (path: string) => ipcRenderer.invoke('session:create', path),
+  logPomodoro: (data: { session_id: number; duration_mins: number }) =>
+  ipcRenderer.invoke('pomodoro:log', data),
+  
 })

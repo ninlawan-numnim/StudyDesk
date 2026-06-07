@@ -57,5 +57,6 @@ interface Window {
     invoke: (...args: any[]) => any,
     getByPath: (path: string) => Promise<any>
     createSession: (path: string) => Promise<any>
+    logPomodoro: (data: { session_id: number; duration_mins: number }) => Promise<{ success: boolean }>
   }
 }
