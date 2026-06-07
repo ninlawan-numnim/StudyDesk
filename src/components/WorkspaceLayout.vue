@@ -223,10 +223,12 @@ watch([markdownContent, currentPage], scheduleSave)
         </span>
       </div>
 
-      <PomodoroTimer
-        :session-id="currentSessionId"
-        @interval-complete="handlePomodoroComplete"
-      />
+      <div class="workspace__toolbar-right">
+  <PomodoroTimer
+    :session-id="currentSessionId"
+    @interval-complete="handlePomodoroComplete"
+  />
+</div>
     </header>
 
     <!-- ── Split-screen panes ─────────────────────────────────── -->
@@ -412,7 +414,12 @@ watch([markdownContent, currentPage], scheduleSave)
   flex: 1;
   justify-content: center;
 }
-.workspace__toolbar-right { width: 80px; }
+.workspace__toolbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 260px;
+}
 
 .workspace__toolbar-btn {
   background: transparent;
