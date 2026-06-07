@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
-import { saveSession, loadSession, closeDb, getSessionByPdfPath, createSession } from './database'
+import { saveSession, loadSession, closeDb, getSessionByPdfPath, createSession, insertPomodoroLog } from './database'
 
 const require = createRequire(import.meta.url)
 const __filename = fileURLToPath(import.meta.url)
@@ -134,5 +134,13 @@ ipcMain.handle('session:create', (_event, pdfPath: string) => {
     return null
   }
 })
-
+ipcMain.handle('pomodoro:log', (_event, data: { session_id: number; duration_mins: number }) => {
+  try {
+    insertPomodoroLog(data.session_id, data.duration_mins)
+    return { success: true }
+  } catch (e) {
+    console.error('[DB] insertPomodoroLog error:', e)
+    return { success: false }
+  }
+})
 app.whenReady().then(createWindow)
