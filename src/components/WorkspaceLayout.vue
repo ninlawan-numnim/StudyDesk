@@ -224,9 +224,9 @@ watch([markdownContent, currentPage], scheduleSave)
       </div>
 
       <PomodoroTimer
-  :session-id="currentSessionId"
-  @interval-complete="handlePomodoroComplete"
-/>
+        :session-id="currentSessionId"
+        @interval-complete="handlePomodoroComplete"
+      />
     </header>
 
     <!-- ── Split-screen panes ─────────────────────────────────── -->
