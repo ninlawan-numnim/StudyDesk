@@ -1,42 +1,132 @@
 <script setup lang="ts">
+/**
+ * WorkspaceLayout.vue — Root workspace component
+ *
+ * Feature 1: Integrated Split-Screen Interface
+ * SRS-1.1.1: PDF Viewer left pane + Markdown Editor right pane
+ * SRS-1.1.2: "Unsupported file format" error on non-PDF
+ *
+ * Feature 4: Visual Reference Embedding
+ * URS-4.1: Drag-and-drop / file-picker JPEG & PNG → insert into notes
+ * URS-4.2: Preview panel renders embedded images via marked
+ */
 import PdfViewer       from './PdfViewer.vue'
 import MarkdownEditor  from './MarkdownEditor.vue'
 import ImageEmbedPanel from './ImageEmbedPanel.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 
-// ── 1. States (ตัวแปรทั้งหมด) ───────────────────────────────────────
+// ── Feature 1 ─────────────────────────────────────────────────────
 const pdfBuffer       = ref<number[] | null>(null)
 const pdfFileName     = ref<string>('')
-const pdfFilePath     = ref<string>('') 
 const markdownContent = ref<string>('')
 const errorMessage    = ref<string>('')
-
 const currentPage     = ref<number>(1)
-const restoredPage    = ref<number>(1)
+const pdfFilePath = ref<string>('') 
 
-const isRestoring      = ref(false)
+// ── Feature 2: Session Recovery state ────────────────
+const isRestoring = ref(false)  // ป้องกัน save ขณะกำลัง restore
 const currentSessionId = ref<number | null>(null)
-const workspaceFolder  = ref<string>('') // เก็บ Workspace ปัจจุบัน
 
-const activeTab      = ref<'write' | 'preview'>('write')
-const showImagePanel = ref(false)
-const editorRef      = ref<InstanceType<typeof MarkdownEditor> | null>(null)
+
 
 let errorTimer: ReturnType<typeof setTimeout> | null = null
-let saveTimer: ReturnType<typeof setTimeout> | null = null
 
-// ── 2. Lifecycle (onMounted) ───────────────────────────────────────
-onMounted(async () => {
-  // 1. โหลด Workspace ก่อน
-  const savedWorkspace = await window.ipcRenderer.invoke('settings:loadWorkspace')
-  if (savedWorkspace) {
-    workspaceFolder.value = savedWorkspace
+function showError(msg: string) {
+  errorMessage.value = msg
+  if (errorTimer) clearTimeout(errorTimer)
+  errorTimer = setTimeout(() => { errorMessage.value = '' }, 3000)
+}
+
+async function handleOpenFile() {
+  const result = await window.ipcRenderer.openPdfFile()
+  if (!result) return
+  
+  if (!result.fileName.toLowerCase().endsWith('.pdf')) {
+    showError('Unsupported file format')   // ← Bug 4: ต้องมีบรรทัดนี้
+    return
   }
 
-  // 2. โหลด Session เก่า
+
+  const existingSession = await window.ipcRenderer.invoke(
+    'session:getByPath',
+    result.filePath
+  )
+
+  if (existingSession) {
+    markdownContent.value  = existingSession.markdown_content ?? ''
+    currentPage.value      = existingSession.current_page
+    restoredPage.value     = existingSession.current_page   // ← Bug 2 fix
+    currentSessionId.value = existingSession.session_id
+  } else {
+    const newSession = await window.ipcRenderer.invoke(
+      'session:create',
+      result.filePath
+    )
+    markdownContent.value  = ''
+    currentPage.value      = 1
+    restoredPage.value     = 1                              // ← reset หน้า 1
+    currentSessionId.value = newSession.session_id
+  }
+
+  // ── set pdfBuffer เป็นขั้นตอนสุดท้ายเสมอ ──────────────
+  // เพราะ PdfViewer จะ trigger render ทันทีที่ buffer เปลี่ยน
+  pdfFilePath.value = result.filePath
+  pdfFileName.value = result.fileName
+  pdfBuffer.value   = result.buffer    // ← ต้อง set หลังสุด
+}
+
+function handlePageChanged(page: number) {
+  currentPage.value = page
+}
+
+// ── Editor sub-toolbar state ───────────────────────────────────────
+// activeTab: 'write' | 'preview' — ตาม mockup ปุ่ม Write / Preview
+const activeTab = ref<'write' | 'preview'>('write')
+
+// ── Feature 4: Visual Reference Embedding ─────────────────────────
+const editorRef      = ref<InstanceType<typeof MarkdownEditor> | null>(null)
+const showImagePanel = ref(false)
+
+function handleInsertImage(markdown: string) {
+  editorRef.value?.insertAtCursor(markdown)
+  showImagePanel.value = false
+}
+
+// ── Formatting helpers (B, I, H1, H2) — placeholders รอ feature อื่น ──
+function handleFormat(type: 'bold' | 'italic' | 'h1' | 'h2') {
+  const wrap: Record<string, [string, string]> = {
+    bold:   ['**', '**'],
+    italic: ['*',  '*'],
+    h1:     ['# ', ''],
+    h2:     ['## ', ''],
+  }
+  const [before, after] = wrap[type]
+  editorRef.value?.insertAtCursor(`${before}text${after}`)
+}
+
+// ── Preview — URS-4.2 ─────────────────────────────────────────────
+function renderMarkdown(md: string): string {
+  return md
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g,
+      '<img alt="$1" src="$2" style="max-width:100%;border-radius:6px;margin:8px 0;" />')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,     '<em>$1</em>')
+    .replace(/`([^`]+)`/g,
+      '<code style="background:var(--cream-dark);padding:1px 4px;border-radius:3px;font-family:var(--font-mono);">$1</code>')
+    .replace(/^### (.+)$/gm, '<h3 style="margin:.6em 0 .2em;color:var(--green-deep);">$1</h3>')
+    .replace(/^## (.+)$/gm,  '<h2 style="margin:.7em 0 .2em;color:var(--green-deep);">$1</h2>')
+    .replace(/^# (.+)$/gm,   '<h1 style="margin:.8em 0 .2em;color:var(--green-deep);">$1</h1>')
+    .replace(/\n/g, '<br>')
+}
+
+const previewHtml = computed(() => renderMarkdown(markdownContent.value))
+
+// ── Restore session on mount — SRS-2.2.1 ─────────────
+onMounted(async () => {
   isRestoring.value = true
   try {
     const session = await window.ipcRenderer.loadSession()
+
     if (!session) return
 
     currentSessionId.value = session.session_id
@@ -45,15 +135,15 @@ onMounted(async () => {
       markdownContent.value = session.markdown_content
     }
 
-    if (session.pdf_file_path && workspaceFolder.value) {
+    if (session.pdf_file_path) {
       try {
         const buffer = await window.ipcRenderer.invoke(
           'file:readByPath',
-          session.pdf_file_path,     // relative path
-          workspaceFolder.value      // workspace folder
+          session.pdf_file_path
         )
         if (buffer) {
-          // ลำดับสำคัญ: set restoredPage ก่อน pdfBuffer
+          // ── ลำดับสำคัญมาก ──────────────────────────────
+          // set restoredPage ก่อน pdfBuffer เสมอ
           restoredPage.value = session.current_page
           pdfFilePath.value  = session.pdf_file_path       
           pdfFileName.value  = session.pdf_file_path.split(/[\\/]/).pop() ?? ''
@@ -74,63 +164,27 @@ onMounted(async () => {
   }
 })
 
-// ── 3. Main Methods (ฟังก์ชันการทำงานหลัก) ──────────────────────────
-function showError(msg: string) {
-  errorMessage.value = msg
-  if (errorTimer) clearTimeout(errorTimer)
-  errorTimer = setTimeout(() => { errorMessage.value = '' }, 3000)
-}
+// ── Track restored page สำหรับส่งให้ PdfViewer ────────
+const restoredPage = ref(1)
 
-async function handleSelectWorkspace() {
-  const folder = await window.ipcRenderer.invoke('dialog:selectWorkspace')
-  if (!folder) return
-  workspaceFolder.value = folder
-  await window.ipcRenderer.invoke('settings:saveWorkspace', folder)
-}
+// ── Auto-save — SRS-2.1.1 ────────────────────────────
+// debounce เพื่อไม่ให้ save ทุก keystroke
+let saveTimer: ReturnType<typeof setTimeout> | null = null
 
-async function handleOpenFile() {
-  // ถ้ายังไม่มี workspace — ให้เลือกก่อน
-  if (!workspaceFolder.value) {
-    await handleSelectWorkspace()
-    if (!workspaceFolder.value) return  // user cancel
-  }
-
-  const result = await window.ipcRenderer.openPdfFile(workspaceFolder.value)
-  if (!result) return
-
-  if (!result.fileName.toLowerCase().endsWith('.pdf')) {
-    showError('Unsupported file format')
-    return
-  }
-
-  // ใช้ relativePath เช็กและบันทึก
-  const existingSession = await window.ipcRenderer.invoke('session:getByPath', result.relativePath)
-
-  if (existingSession) {
-    markdownContent.value  = existingSession.markdown_content ?? ''
-    restoredPage.value     = existingSession.current_page
-    currentPage.value      = existingSession.current_page
-    currentSessionId.value = existingSession.session_id
-  } else {
-    const newSession = await window.ipcRenderer.invoke('session:create', result.relativePath)
-    markdownContent.value  = ''
-    restoredPage.value     = 1
-    currentPage.value      = 1
-    currentSessionId.value = newSession.session_id
-  }
-
-  // Set buffer สุดท้ายเสมอ
-  pdfFilePath.value = result.relativePath
-  pdfFileName.value = result.fileName
-  pdfBuffer.value   = result.buffer
+function scheduleSave() {
+  if (isRestoring.value) return  // ไม่ save ขณะ restore
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(doSave, 1000)  // debounce 1 วินาที
 }
 
 async function doSave() {
   if (!pdfBuffer.value && !markdownContent.value) return
+  
+  // ป้องกันการเซฟมั่ว ถ้าเปิดแอปมาแล้วยังไม่มี Session ID ให้หยุดทำงานก่อน
   if (!currentSessionId.value) return 
 
   await window.ipcRenderer.saveSession({
-    session_id:       currentSessionId.value, 
+    session_id:       currentSessionId.value, // 🛠️ แนบ ID ส่งไปแล้ว!
     pdf_file_path:    pdfFilePath.value || '', 
     current_page:     currentPage.value,
     cursor_index:     editorRef.value?.getCursorIndex() ?? 0,
@@ -138,49 +192,10 @@ async function doSave() {
   })
 }
 
-function scheduleSave() {
-  if (isRestoring.value) return  
-  if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(doSave, 1000)  
-}
-
-// ── 4. Event Handlers & Helpers ────────────────────────────────────
-function handlePageChanged(page: number) {
-  currentPage.value = page
-}
-
-function handleInsertImage(markdown: string) {
-  editorRef.value?.insertAtCursor(markdown)
-  showImagePanel.value = false
-}
-
-function handleFormat(type: 'bold' | 'italic' | 'h1' | 'h2') {
-  const wrap: Record<string, [string, string]> = {
-    bold:   ['**', '**'],
-    italic: ['*',  '*'],
-    h1:     ['# ', ''],
-    h2:     ['## ', ''],
-  }
-  const [before, after] = wrap[type]
-  editorRef.value?.insertAtCursor(`${before}text${after}`)
-}
-
-function renderMarkdown(md: string): string {
-  return md
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2" style="max-width:100%;border-radius:6px;margin:8px 0;" />')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g,     '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code style="background:var(--cream-dark);padding:1px 4px;border-radius:3px;font-family:var(--font-mono);">$1</code>')
-    .replace(/^### (.+)$/gm, '<h3 style="margin:.6em 0 .2em;color:var(--green-deep);">$1</h3>')
-    .replace(/^## (.+)$/gm,  '<h2 style="margin:.7em 0 .2em;color:var(--green-deep);">$1</h2>')
-    .replace(/^# (.+)$/gm,   '<h1 style="margin:.8em 0 .2em;color:var(--green-deep);">$1</h1>')
-    .replace(/\n/g, '<br>')
-}
-
-const previewHtml = computed(() => renderMarkdown(markdownContent.value))
 
 // Watch ทุก state ที่ต้องการ save
 watch([markdownContent, currentPage], scheduleSave)
+
 </script>
 
 <template>
@@ -188,29 +203,19 @@ watch([markdownContent, currentPage], scheduleSave)
 
     <!-- ── Global Toolbar (Feature 1) ─────────────────────────── -->
     <header class="workspace__toolbar">
-  <span class="workspace__logo">Study<span class="workspace__logo-accent">Desk</span></span>
+      <span class="workspace__logo">Study<span class="workspace__logo-accent">Desk</span></span>
 
-  <div class="workspace__toolbar-center">
-    <!-- แสดง workspace หรือให้เลือก -->
-    <button
-      class="workspace__toolbar-btn workspace__toolbar-btn--secondary"
-      :title="workspaceFolder || 'No workspace selected'"
-      @click="handleSelectWorkspace"
-    >
-      {{ workspaceFolder ? '📁 ' + workspaceFolder.split(/[\\/]/).pop() : '📁 Set Workspace' }}
-    </button>
+      <div class="workspace__toolbar-center">
+        <button class="workspace__toolbar-btn" @click="handleOpenFile">
+          Open PDF
+        </button>
+        <span v-if="pdfFileName" class="workspace__filename" :title="pdfFileName">
+          {{ pdfFileName }}
+        </span>
+      </div>
 
-    <button class="workspace__toolbar-btn" @click="handleOpenFile">
-      Open PDF
-    </button>
-
-    <span v-if="pdfFileName" class="workspace__filename" :title="pdfFileName">
-      {{ pdfFileName }}
-    </span>
-  </div>
-
-  <div class="workspace__toolbar-right" />
-</header>
+      <div class="workspace__toolbar-right" />
+    </header>
 
     <!-- ── Split-screen panes ─────────────────────────────────── -->
     <main class="workspace__panes">
