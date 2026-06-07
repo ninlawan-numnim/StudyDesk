@@ -53,6 +53,13 @@ function initSchema(database: Database.Database): void {
       last_modified TEXT    NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (session_id) REFERENCES STUDY_SESSIONS(session_id)
     );
+    CREATE TABLE IF NOT EXISTS POMODORO_LOGS (
+  log_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id   INTEGER NOT NULL,
+  duration_mins INTEGER NOT NULL DEFAULT 25,
+  completed_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (session_id) REFERENCES STUDY_SESSIONS(session_id)
+);
   `)
 
   // ถ้ายังไม่มี session เลย ให้สร้าง default session ก่อน
@@ -165,6 +172,14 @@ export function createSession(pdfPath: string): number {
   `).run(sessionId)
 
   return sessionId
+}
+
+export function insertPomodoroLog(sessionId: number, durationMins: number): void {
+  const database = getDb()
+  database.prepare(`
+    INSERT INTO POMODORO_LOGS (session_id, duration_mins, completed_at)
+    VALUES (?, ?, datetime('now'))
+  `).run(sessionId, durationMins)
 }
 
 /**
