@@ -15,6 +15,7 @@ import MarkdownEditor  from './MarkdownEditor.vue'
 import ImageEmbedPanel from './ImageEmbedPanel.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import PomodoroTimer from './PomodoroTimer.vue'
+import OcrUploadPanel from './OcrUploadPanel.vue'
 
 // ── Feature 1 ─────────────────────────────────────────────────────
 const pdfBuffer       = ref<number[] | null>(null)
@@ -87,6 +88,7 @@ const activeTab = ref<'write' | 'preview'>('write')
 // ── Feature 4: Visual Reference Embedding ─────────────────────────
 const editorRef      = ref<InstanceType<typeof MarkdownEditor> | null>(null)
 const showImagePanel = ref(false)
+const showOcrPanel = ref(false)
 
 function handleInsertImage(markdown: string) {
   editorRef.value?.insertAtCursor(markdown)
@@ -278,9 +280,14 @@ watch([markdownContent, currentPage], scheduleSave)
           <div class="editor-bar__sep" />
 
           <!-- +AI placeholder — รอ feature อื่น -->
-          <button class="editor-bar__ai" disabled title="AI Assistant (coming soon)">
-            + AI
-          </button>
+          <button
+              class="editor-bar__ai"
+              :class="{ 'editor-bar__ai--active': showOcrPanel }"
+              title="OCR - Image Text Extraction"
+              @click="showOcrPanel = !showOcrPanel; showImagePanel = false"
+            >
+              + AI
+            </button>
 
           <!-- Spacer -->
           <div class="editor-bar__spacer" />
@@ -304,6 +311,11 @@ watch([markdownContent, currentPage], scheduleSave)
         <transition name="slide-down">
           <div v-if="showImagePanel" class="workspace__image-panel">
             <ImageEmbedPanel @insert-image="handleInsertImage" />
+          </div>
+        </transition>
+        <transition name="slide-down">
+          <div v-if="showOcrPanel" class="workspace__image-panel">
+            <OcrUploadPanel />
           </div>
         </transition>
 
@@ -536,9 +548,10 @@ watch([markdownContent, currentPage], scheduleSave)
   padding: 3px 12px;
   font-size: .75rem;
   font-family: var(--font-sans);
-  cursor: not-allowed;
-  opacity: .6;
+  cursor: pointer;
+  opacity: .85;
   white-space: nowrap;
+  transition: background .15s, opacity .15s;
 }
 
 /* Write / Preview tabs */
@@ -611,6 +624,11 @@ watch([markdownContent, currentPage], scheduleSave)
   z-index: 200;
   pointer-events: none;
   white-space: nowrap;
+}
+.editor-bar__ai--active {
+  background: var(--green-mid);
+  opacity: 1;
+  cursor: pointer;
 }
 
 /* ── Transitions ──────────────────────────────────────────────── */
