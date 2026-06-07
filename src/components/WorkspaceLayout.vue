@@ -41,23 +41,38 @@ async function handleOpenFile() {
   const result = await window.ipcRenderer.openPdfFile()
   if (!result) return
   
-  pdfBuffer.value = result.buffer
+  if (!result.fileName.toLowerCase().endsWith('.pdf')) {
+    showError('Unsupported file format')   // ← Bug 4: ต้องมีบรรทัดนี้
+    return
+  }
+
+
+  const existingSession = await window.ipcRenderer.invoke(
+    'session:getByPath',
+    result.filePath
+  )
+
+  if (existingSession) {
+    markdownContent.value  = existingSession.markdown_content ?? ''
+    currentPage.value      = existingSession.current_page
+    restoredPage.value     = existingSession.current_page   // ← Bug 2 fix
+    currentSessionId.value = existingSession.session_id
+  } else {
+    const newSession = await window.ipcRenderer.invoke(
+      'session:create',
+      result.filePath
+    )
+    markdownContent.value  = ''
+    currentPage.value      = 1
+    restoredPage.value     = 1                              // ← reset หน้า 1
+    currentSessionId.value = newSession.session_id
+  }
+
+  // ── set pdfBuffer เป็นขั้นตอนสุดท้ายเสมอ ──────────────
+  // เพราะ PdfViewer จะ trigger render ทันทีที่ buffer เปลี่ยน
   pdfFilePath.value = result.filePath
   pdfFileName.value = result.fileName
-
-  const existingSession = await window.ipcRenderer.invoke('session:getByPath', result.filePath)
-  
-  if (existingSession) {
-    markdownContent.value = existingSession.markdown_content
-    currentPage.value = existingSession.current_page
-    currentSessionId.value = existingSession.session_id // 🛠️ เก็บ ID เดิมไว้
-  } else {
-    // 🛠️ ถ้าไม่เคยเปิดมาก่อน ให้สร้างใหม่เลย
-    const newSession = await window.ipcRenderer.invoke('session:create', result.filePath)
-    markdownContent.value = ''
-    currentPage.value = 1
-    currentSessionId.value = newSession.session_id // 🛠️ เก็บ ID ใหม่ไว้
-  }
+  pdfBuffer.value   = result.buffer    // ← ต้อง set หลังสุด
 }
 
 function handlePageChanged(page: number) {
@@ -110,44 +125,39 @@ const previewHtml = computed(() => renderMarkdown(markdownContent.value))
 onMounted(async () => {
   isRestoring.value = true
   try {
-   const session = await window.ipcRenderer.loadSession()
+    const session = await window.ipcRenderer.loadSession()
 
-    if (!session) {
-      isRestoring.value = false
-      return
-    }
+    if (!session) return
+
     currentSessionId.value = session.session_id
 
-    // Restore markdown content ก่อนเสมอ
     if (session.markdown_content) {
       markdownContent.value = session.markdown_content
     }
 
-    // Restore PDF — ต้องโหลดไฟล์จาก path ที่เก็บไว้
     if (session.pdf_file_path) {
       try {
-        // อ่านไฟล์ผ่าน IPC เหมือนตอน open ปกติ
-        // แต่ใช้ path โดยตรงแทนที่จะเปิด dialog
         const buffer = await window.ipcRenderer.invoke(
           'file:readByPath',
           session.pdf_file_path
         )
         if (buffer) {
-          pdfBuffer.value   = buffer
-          pdfFilePath.value = session.pdf_file_path
+          // ── ลำดับสำคัญมาก ──────────────────────────────
+          // set restoredPage ก่อน pdfBuffer เสมอ
           restoredPage.value = session.current_page
+          pdfFilePath.value  = session.pdf_file_path       
+          pdfFileName.value  = session.pdf_file_path.split(/[\\/]/).pop() ?? ''
+          pdfBuffer.value    = buffer                      
         }
       } catch {
-        // ไฟล์อาจถูกลบหรือย้ายไปแล้ว — ไม่ error หน้า UI
         console.warn('[Session] PDF file not found:', session.pdf_file_path)
       }
     }
 
-    // Restore cursor — ส่งให้ editor หลัง mount เสร็จ
     if (session.cursor_index > 0) {
       setTimeout(() => {
         editorRef.value?.restoreCursor(session.cursor_index)
-      }, 100)
+      }, 150)  
     }
   } finally {
     isRestoring.value = false
