@@ -14,6 +14,7 @@ import PdfViewer       from './PdfViewer.vue'
 import MarkdownEditor  from './MarkdownEditor.vue'
 import ImageEmbedPanel from './ImageEmbedPanel.vue'
 import { ref, computed, onMounted, watch } from 'vue'
+import PomodoroTimer from './PomodoroTimer.vue'
 
 // ── Feature 1 ─────────────────────────────────────────────────────
 const pdfBuffer       = ref<number[] | null>(null)
@@ -192,6 +193,14 @@ async function doSave() {
   })
 }
 
+async function handlePomodoroComplete(mins: number) {
+  if (!currentSessionId.value) return
+  await window.ipcRenderer.logPomodoro({
+    session_id:    currentSessionId.value,
+    duration_mins: mins,
+  })
+}
+
 
 // Watch ทุก state ที่ต้องการ save
 watch([markdownContent, currentPage], scheduleSave)
@@ -214,7 +223,10 @@ watch([markdownContent, currentPage], scheduleSave)
         </span>
       </div>
 
-      <div class="workspace__toolbar-right" />
+      <PomodoroTimer
+  :session-id="currentSessionId"
+  @interval-complete="handlePomodoroComplete"
+/>
     </header>
 
     <!-- ── Split-screen panes ─────────────────────────────────── -->
