@@ -19,6 +19,12 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     return ipcRenderer.invoke(channel, ...omit)
   },
 
-    openPdfFile: () => ipcRenderer.invoke('dialog:openPdf'),
+  // Feature 1
+  openPdfFile: () => ipcRenderer.invoke('dialog:openPdf'),
 
+  // Feature 2 — Session Recovery 
+  saveSession: (data: object) => ipcRenderer.invoke('session:save', data),
+  loadSession: ()             => ipcRenderer.invoke('session:load'),
+  getByPath: (path: string)   => ipcRenderer.invoke('session:getByPath', path),
+  createSession: (path: string) => ipcRenderer.invoke('session:create', path),
 })

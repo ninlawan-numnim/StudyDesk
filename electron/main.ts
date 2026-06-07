@@ -7,9 +7,11 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { saveSession, loadSession, closeDb, getSessionByPdfPath, createSession } from './database'
 
 const require = createRequire(import.meta.url)
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -38,12 +40,10 @@ ipcMain.handle('dialog:openPdf', async () => {
   if (canceled || filePaths.length === 0) return null
 
   const filePath = filePaths[0]
-
-  // แปลงเป็น number[] เพราะ Buffer serialize ผ่าน IPC ไม่สมบูรณ์
-  const buffer = Array.from(fs.readFileSync(filePath))
+  const buffer   = Array.from(fs.readFileSync(filePath))
   const fileName = filePath.split(/[\\/]/).pop() ?? 'document.pdf'
 
-  return { buffer, fileName }
+  return { buffer, fileName, filePath }  // ← return filePath ด้วย
 })
 
 // ─────────────────────────────────────────────────────
@@ -77,6 +77,61 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
+  }
+})
+
+ipcMain.handle('session:save', (_event, data) => {
+  try {
+    saveSession(data)
+    return { success: true }
+  } catch (e) {
+    console.error('[DB] saveSession error:', e)
+    return { success: false }
+  }
+})
+
+ipcMain.handle('session:load', () => {
+  try {
+    return loadSession()
+  } catch (e) {
+    console.error('[DB] loadSession error:', e)
+    return null
+  }
+})
+
+// ── Flush DB เมื่อ app กำลังปิด ──────────────────────
+// before-quit fires ก่อนที่ window จะถูก destroy
+app.on('before-quit', () => {
+  closeDb()
+})
+
+// อ่านไฟล์จาก path โดยตรง (สำหรับ session restore)
+ipcMain.handle('file:readByPath', (_event, filePath: string) => {
+  try {
+    if (!fs.existsSync(filePath)) return null
+    return Array.from(fs.readFileSync(filePath))
+  } catch {
+    return null
+  }
+})
+
+ipcMain.handle('session:getByPath', (_event, pdfPath: string) => {
+  try {
+    return getSessionByPdfPath(pdfPath)
+  } catch (e) {
+    console.error('[DB] getSessionByPdfPath error:', e)
+    return null
+  }
+})
+
+
+ipcMain.handle('session:create', (_event, pdfPath: string) => {
+  try {
+    const sessionId = createSession(pdfPath)
+    return { session_id: sessionId }
+  } catch (e) {
+    console.error('[DB] createSession error:', e)
+    return null
   }
 })
 

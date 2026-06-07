@@ -19,6 +19,7 @@ if (typeof (Promise as any).try !== 'function') {
 // ── Props ─────────────────────────────────────────────
 const props = defineProps<{
   pdfBuffer: number[] | null
+  initialPage: number 
 }>()
 
 const emit = defineEmits<{
@@ -59,13 +60,17 @@ async function renderPage(pageNum: number) {
 
 // ── Load PDF ──────────────────────────────────────────
 watch(
-  () => props.pdfBuffer,
-  async (newBuffer) => {
+  // watch ทั้ง pdfBuffer และ initialPage พร้อมกัน
+  () => [props.pdfBuffer, props.initialPage] as const,
+  async ([newBuffer, newInitialPage]) => {
     if (!newBuffer) return
 
     errorMessage.value = ''
-    currentPage.value = 1
     totalPages.value = 0
+
+    if (pdfDoc.value) {
+      await pdfDoc.value.destroy()
+    }
     pdfDoc.value = null
 
     try {
@@ -73,21 +78,30 @@ watch(
 
       pdfDoc.value = await pdfjsLib.getDocument({
         data: uint8,
-        useWorkerFetch: false,   // ปิด worker fetch
-        useSystemFonts: true,    // ใช้ system fonts แทน fetch
-        disableStream: true,     // ปิด streaming
-        cMapUrl: '/',            // '/' = ไม่ fetch cMap จาก network
+        useWorkerFetch: false,
+        useSystemFonts: true,
+        disableStream: true,
+        cMapUrl: '/',
         cMapPacked: true,
-        standardFontDataUrl: '/', // '/' = ไม่ fetch standard fonts จาก network
+        standardFontDataUrl: '/',
       }).promise
 
       totalPages.value = pdfDoc.value.numPages
-      await renderPage(1)
+
+      // ใช้ newInitialPage จาก watch tuple — ค่า ณ เวลา render
+      const startPage = Math.min(
+        Math.max(newInitialPage ?? 1, 1),
+        pdfDoc.value.numPages              // ป้องกันหน้าเกิน total
+      )
+      currentPage.value = startPage
+      await renderPage(startPage)
+
     } catch (e) {
       errorMessage.value = 'Failed to load PDF. The file may be corrupted.'
       console.error('[PdfViewer] Load error:', e)
     }
-  }
+  },
+  { deep: false }
 )
 
 // ── Navigation ────────────────────────────────────────

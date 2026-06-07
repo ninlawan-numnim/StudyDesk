@@ -10,10 +10,10 @@
  * URS-4.1: Drag-and-drop / file-picker JPEG & PNG → insert into notes
  * URS-4.2: Preview panel renders embedded images via marked
  */
-import { ref, computed } from 'vue'
 import PdfViewer       from './PdfViewer.vue'
 import MarkdownEditor  from './MarkdownEditor.vue'
 import ImageEmbedPanel from './ImageEmbedPanel.vue'
+import { ref, computed, onMounted, watch } from 'vue'
 
 // ── Feature 1 ─────────────────────────────────────────────────────
 const pdfBuffer       = ref<number[] | null>(null)
@@ -21,6 +21,13 @@ const pdfFileName     = ref<string>('')
 const markdownContent = ref<string>('')
 const errorMessage    = ref<string>('')
 const currentPage     = ref<number>(1)
+const pdfFilePath = ref<string>('') 
+
+// ── Feature 2: Session Recovery state ────────────────
+const isRestoring = ref(false)  // ป้องกัน save ขณะกำลัง restore
+const currentSessionId = ref<number | null>(null)
+
+
 
 let errorTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -31,15 +38,41 @@ function showError(msg: string) {
 }
 
 async function handleOpenFile() {
-  errorMessage.value = ''
   const result = await window.ipcRenderer.openPdfFile()
   if (!result) return
+  
   if (!result.fileName.toLowerCase().endsWith('.pdf')) {
-    showError('Unsupported file format')
+    showError('Unsupported file format')   // ← Bug 4: ต้องมีบรรทัดนี้
     return
   }
-  pdfBuffer.value   = result.buffer
+
+
+  const existingSession = await window.ipcRenderer.invoke(
+    'session:getByPath',
+    result.filePath
+  )
+
+  if (existingSession) {
+    markdownContent.value  = existingSession.markdown_content ?? ''
+    currentPage.value      = existingSession.current_page
+    restoredPage.value     = existingSession.current_page   // ← Bug 2 fix
+    currentSessionId.value = existingSession.session_id
+  } else {
+    const newSession = await window.ipcRenderer.invoke(
+      'session:create',
+      result.filePath
+    )
+    markdownContent.value  = ''
+    currentPage.value      = 1
+    restoredPage.value     = 1                              // ← reset หน้า 1
+    currentSessionId.value = newSession.session_id
+  }
+
+  // ── set pdfBuffer เป็นขั้นตอนสุดท้ายเสมอ ──────────────
+  // เพราะ PdfViewer จะ trigger render ทันทีที่ buffer เปลี่ยน
+  pdfFilePath.value = result.filePath
   pdfFileName.value = result.fileName
+  pdfBuffer.value   = result.buffer    // ← ต้อง set หลังสุด
 }
 
 function handlePageChanged(page: number) {
@@ -87,6 +120,82 @@ function renderMarkdown(md: string): string {
 }
 
 const previewHtml = computed(() => renderMarkdown(markdownContent.value))
+
+// ── Restore session on mount — SRS-2.2.1 ─────────────
+onMounted(async () => {
+  isRestoring.value = true
+  try {
+    const session = await window.ipcRenderer.loadSession()
+
+    if (!session) return
+
+    currentSessionId.value = session.session_id
+
+    if (session.markdown_content) {
+      markdownContent.value = session.markdown_content
+    }
+
+    if (session.pdf_file_path) {
+      try {
+        const buffer = await window.ipcRenderer.invoke(
+          'file:readByPath',
+          session.pdf_file_path
+        )
+        if (buffer) {
+          // ── ลำดับสำคัญมาก ──────────────────────────────
+          // set restoredPage ก่อน pdfBuffer เสมอ
+          restoredPage.value = session.current_page
+          pdfFilePath.value  = session.pdf_file_path       
+          pdfFileName.value  = session.pdf_file_path.split(/[\\/]/).pop() ?? ''
+          pdfBuffer.value    = buffer                      
+        }
+      } catch {
+        console.warn('[Session] PDF file not found:', session.pdf_file_path)
+      }
+    }
+
+    if (session.cursor_index > 0) {
+      setTimeout(() => {
+        editorRef.value?.restoreCursor(session.cursor_index)
+      }, 150)  
+    }
+  } finally {
+    isRestoring.value = false
+  }
+})
+
+// ── Track restored page สำหรับส่งให้ PdfViewer ────────
+const restoredPage = ref(1)
+
+// ── Auto-save — SRS-2.1.1 ────────────────────────────
+// debounce เพื่อไม่ให้ save ทุก keystroke
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleSave() {
+  if (isRestoring.value) return  // ไม่ save ขณะ restore
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(doSave, 1000)  // debounce 1 วินาที
+}
+
+async function doSave() {
+  if (!pdfBuffer.value && !markdownContent.value) return
+  
+  // ป้องกันการเซฟมั่ว ถ้าเปิดแอปมาแล้วยังไม่มี Session ID ให้หยุดทำงานก่อน
+  if (!currentSessionId.value) return 
+
+  await window.ipcRenderer.saveSession({
+    session_id:       currentSessionId.value, // 🛠️ แนบ ID ส่งไปแล้ว!
+    pdf_file_path:    pdfFilePath.value || '', 
+    current_page:     currentPage.value,
+    cursor_index:     editorRef.value?.getCursorIndex() ?? 0,
+    markdown_content: markdownContent.value,
+  })
+}
+
+
+// Watch ทุก state ที่ต้องการ save
+watch([markdownContent, currentPage], scheduleSave)
+
 </script>
 
 <template>
@@ -113,7 +222,11 @@ const previewHtml = computed(() => renderMarkdown(markdownContent.value))
 
       <!-- Left: PDF Viewer -->
       <section class="workspace__pane">
-        <PdfViewer :pdf-buffer="pdfBuffer" @page-changed="handlePageChanged" />
+        <PdfViewer
+  :pdf-buffer="pdfBuffer"
+  :initial-page="restoredPage"
+  @page-changed="handlePageChanged"
+/>
       </section>
 
       <div class="workspace__divider" />
@@ -182,7 +295,11 @@ const previewHtml = computed(() => renderMarkdown(markdownContent.value))
 
         <!-- Write tab: Markdown Editor -->
         <div v-show="activeTab === 'write'" class="workspace__editor-area">
-          <MarkdownEditor ref="editorRef" v-model="markdownContent" />
+          <MarkdownEditor 
+                  ref="editorRef" 
+                  v-model="markdownContent" 
+                  @cursor-moved="scheduleSave" 
+/>
         </div>
 
         <!-- Preview tab: Rendered markdown — URS-4.2 -->
