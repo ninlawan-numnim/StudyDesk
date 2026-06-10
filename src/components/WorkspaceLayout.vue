@@ -13,6 +13,7 @@
 import PdfViewer       from './PdfViewer.vue'
 import MarkdownEditor  from './MarkdownEditor.vue'
 import ImageEmbedPanel from './ImageEmbedPanel.vue'
+import AlertDialog     from './AlertDialog.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import PomodoroTimer from './PomodoroTimer.vue'
 import OcrUploadPanel from './OcrUploadPanel.vue'
@@ -24,6 +25,17 @@ const markdownContent = ref<string>('')
 const errorMessage    = ref<string>('')
 const currentPage     = ref<number>(1)
 const pdfFilePath = ref<string>('') 
+
+// ── Alert Dialog state ────────────────────────────────────────────
+const alertVisible = ref(false)
+const alertMessage = ref('')
+const alertTitle   = ref('')
+
+function showAlert(title: string, message: string) {
+  alertTitle.value   = title
+  alertMessage.value = message
+  alertVisible.value = true
+}
 
 // ── Feature 2: Session Recovery state ────────────────
 const isRestoring = ref(false)  // ป้องกัน save ขณะกำลัง restore
@@ -44,7 +56,7 @@ async function handleOpenFile() {
   if (!result) return
   
   if (!result.fileName.toLowerCase().endsWith('.pdf')) {
-    showError('Unsupported file format')   // ← Bug 4: ต้องมีบรรทัดนี้
+    showAlert('ไฟล์ไม่รองรับ', `"${result.fileName}" ไม่ใช่ไฟล์ PDF\nกรุณาเลือกเฉพาะไฟล์ .pdf เท่านั้น`)
     return
   }
 
@@ -343,6 +355,15 @@ watch([markdownContent, currentPage], scheduleSave)
         ⚠️ {{ errorMessage }}
       </div>
     </transition>
+
+    <!-- Alert Dialog — ไฟล์ผิดประเภท / ข้อผิดพลาดสำคัญ -->
+    <AlertDialog
+      :visible="alertVisible"
+      :title="alertTitle"
+      :message="alertMessage"
+      type="error"
+      @close="alertVisible = false"
+    />
 
   </div>
 </template>
