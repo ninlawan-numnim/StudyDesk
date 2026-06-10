@@ -37,7 +37,7 @@ async function onUploadClick() {
     const file = input.files?.[0]
     if (!file) return
     if (!ALLOWED.includes(file.type)) {
-      showAlert(`ไฟล์ "${file.name}" ไม่รองรับ\nกรุณาอัปโหลดเฉพาะไฟล์ JPEG หรือ PNG เท่านั้น`)
+      showAlert(`File "${file.name}" Not supported. \nPlease upload only JPEG or PNG files.`)
       showStatus('error')
       return
     }
@@ -80,7 +80,7 @@ async function onUploadClick() {
     <!-- Alert Dialog -->
     <AlertDialog
       :visible="alertVisible"
-      title="ไฟล์ไม่รองรับ"
+      title="Unsupported File"
       :message="alertMessage"
       type="error"
       @close="alertVisible = false"

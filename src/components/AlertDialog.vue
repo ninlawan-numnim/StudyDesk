@@ -27,16 +27,16 @@ const emit = defineEmits<{ close: [] }>()
 
           <!-- Content -->
           <div class="alert-dialog__content">
-            <p class="alert-dialog__title">{{ title ?? (type === 'warning' ? 'คำเตือน' : 'เกิดข้อผิดพลาด') }}</p>
+            <p class="alert-dialog__title">{{ title ?? (type === 'warning' ? 'Warning' : 'An error occurred.') }}</p>
             <p class="alert-dialog__message">{{ message }}</p>
           </div>
 
           <!-- Close button -->
-          <button class="alert-dialog__close" @click="emit('close')" aria-label="ปิด">✕</button>
+          <button class="alert-dialog__close" @click="emit('close')" aria-label="close">✕</button>
 
           <!-- OK footer -->
           <div class="alert-dialog__footer">
-            <button class="alert-dialog__ok" @click="emit('close')">ตกลง</button>
+            <button class="alert-dialog__ok" @click="emit('close')">agree</button>
           </div>
 
         </div>

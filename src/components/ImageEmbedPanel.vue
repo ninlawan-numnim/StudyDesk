@@ -47,7 +47,7 @@ function showError(msg: string) {
 
 async function processFile(file: File) {
   if (!ALLOWED.includes(file.type)) {
-    showAlert(`ไฟล์ "${file.name}" ไม่รองรับ\nกรุณาอัปโหลดเฉพาะไฟล์ JPEG หรือ PNG เท่านั้น`)
+    showAlert(`File "${file.name}" Not supported. \nPlease upload only JPEG or PNG files.`)
     return
   }
   try {
@@ -58,7 +58,7 @@ async function processFile(file: File) {
     const markdown = `<img src="${dataUrl}" alt="${safeName}" width="${width}" />`
     emit('insert-image', markdown)
   } catch {
-    showAlert('ไม่สามารถอ่านไฟล์ภาพได้ กรุณาลองใหม่อีกครั้ง')
+    showAlert('The image file cannot be read. Please try again.')
   }
 }
 
@@ -128,7 +128,7 @@ async function onUploadClick() {
     <!-- Alert Dialog -->
     <AlertDialog
       :visible="alertVisible"
-      title="ไฟล์ไม่รองรับ"
+      title="Unsupported File"
       :message="alertMessage"
       type="error"
       @close="alertVisible = false"
