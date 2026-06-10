@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import AlertDialog from './AlertDialog.vue'
 
 const emit = defineEmits<{
   'insert-image': [markdown: string]
@@ -7,6 +8,15 @@ const emit = defineEmits<{
 
 const isDragging  = ref(false)
 const errorMsg    = ref('')
+
+// ── Alert Dialog ──────────────────────────────────────────────────
+const alertVisible = ref(false)
+const alertMessage = ref('')
+
+function showAlert(msg: string) {
+  alertMessage.value = msg
+  alertVisible.value = true
+}
 
 // ── Image size selector ───────────────────────────────────────────
 const SIZE_OPTIONS = [
@@ -37,7 +47,7 @@ function showError(msg: string) {
 
 async function processFile(file: File) {
   if (!ALLOWED.includes(file.type)) {
-    showError('Only JPEG and PNG files are supported.')
+    showAlert(`ไฟล์ "${file.name}" ไม่รองรับ\nกรุณาอัปโหลดเฉพาะไฟล์ JPEG หรือ PNG เท่านั้น`)
     return
   }
   try {
@@ -48,7 +58,7 @@ async function processFile(file: File) {
     const markdown = `<img src="${dataUrl}" alt="${safeName}" width="${width}" />`
     emit('insert-image', markdown)
   } catch {
-    showError('Failed to read the image file.')
+    showAlert('ไม่สามารถอ่านไฟล์ภาพได้ กรุณาลองใหม่อีกครั้ง')
   }
 }
 
@@ -114,6 +124,15 @@ async function onUploadClick() {
 
       <p v-if="errorMsg" class="iep__error">⚠ {{ errorMsg }}</p>
     </div>
+
+    <!-- Alert Dialog -->
+    <AlertDialog
+      :visible="alertVisible"
+      title="ไฟล์ไม่รองรับ"
+      :message="alertMessage"
+      type="error"
+      @close="alertVisible = false"
+    />
   </div>
 </template>
 
