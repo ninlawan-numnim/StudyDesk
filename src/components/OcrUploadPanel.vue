@@ -5,16 +5,28 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import AlertDialog from './AlertDialog.vue'
 
 const ALLOWED = ['image/jpeg', 'image/png']
 
 const status   = ref<'idle' | 'success' | 'error'>('idle')
 const fileName = ref('')
 
+// ── Alert Dialog ──────────────────────────────────────────────────
+const alertVisible = ref(false)
+const alertMessage = ref('')
+
+function showAlert(msg: string) {
+  alertMessage.value = msg
+  alertVisible.value = true
+}
+
 function showStatus(s: 'success' | 'error', name = '') {
   status.value   = s
   fileName.value = name
-  setTimeout(() => { status.value = 'idle'; fileName.value = '' }, 3000)
+  if (s === 'success') {
+    setTimeout(() => { status.value = 'idle'; fileName.value = '' }, 3000)
+  }
 }
 
 async function onUploadClick() {
@@ -25,6 +37,7 @@ async function onUploadClick() {
     const file = input.files?.[0]
     if (!file) return
     if (!ALLOWED.includes(file.type)) {
+      showAlert(`ไฟล์ "${file.name}" ไม่รองรับ\nกรุณาอัปโหลดเฉพาะไฟล์ JPEG หรือ PNG เท่านั้น`)
       showStatus('error')
       return
     }
@@ -61,11 +74,17 @@ async function onUploadClick() {
           ✓ Upload Successful
           <span v-if="fileName" class="ocr__filename">{{ fileName }}</span>
         </div>
-        <div v-else-if="status === 'error'" class="ocr__msg ocr__msg--error">
-          ⚠ Unsupported file format. Please upload JPEG or PNG.
-        </div>
       </transition>
     </div>
+
+    <!-- Alert Dialog -->
+    <AlertDialog
+      :visible="alertVisible"
+      title="ไฟล์ไม่รองรับ"
+      :message="alertMessage"
+      type="error"
+      @close="alertVisible = false"
+    />
   </div>
 </template>
 
@@ -160,10 +179,6 @@ async function onUploadClick() {
 .ocr__msg--success {
   background: #e6f4e3;
   color: var(--green-deep);
-}
-.ocr__msg--error {
-  background: #fce8e8;
-  color: var(--color-error);
 }
 
 .ocr__filename {
