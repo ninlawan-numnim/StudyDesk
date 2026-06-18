@@ -47,19 +47,33 @@ function showError(msg: string) {
 
 async function processFile(file: File) {
   if (!ALLOWED.includes(file.type)) {
-    showAlert(`File "${file.name}" Not supported. \nPlease upload only JPEG or PNG files.`)
+    // 🟢 แก้ข้อความแจ้งเตือนให้ตรงกับ SRS-4.1.5 เป๊ะๆ
+    showAlert("Only JPEG and PNG files are supported.")
     return
   }
   try {
     const dataUrl  = await toBase64(file)
     const safeName = file.name.replace(/[^\w.\-]/g, '_')
     const width    = SIZE_OPTIONS.find(o => o.value === selectedSize.value)!.width
-    // ใช้ HTML img tag แทน markdown syntax เพื่อกำหนด width ได้
-    const markdown = `<img src="${dataUrl}" alt="${safeName}" width="${width}" />`
+    // ใช้ HTML img tag เพื่อจัดการเรื่อง CSS และขนาดภาพ
+    const markdown = `<img src="${dataUrl}" alt="${safeName}" width="${width}" style="border-radius: 6px; margin: 8px 0;" />`
     emit('insert-image', markdown)
   } catch {
     showAlert('The image file cannot be read. Please try again.')
   }
+}
+
+function handleFileChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  
+  if (file) {
+    // 🟢 โยนไฟล์ให้ processFile จัดการเรื่อง Validation และแปลง Base64
+    processFile(file) 
+  }
+  
+  // Reset input เพื่อให้ผู้ใช้สามารถเลือกไฟล์เดิมซ้ำได้ถ้าต้องการ
+  target.value = '' 
 }
 
 // ── Drag-and-drop ─────────────────────────────────────────────────
@@ -72,17 +86,13 @@ async function onDrop(e: DragEvent) {
   if (file) await processFile(file)
 }
 
-// ── File picker ───────────────────────────────────────────────────
-async function onUploadClick() {
-  const input = document.createElement('input')
-  input.type   = 'file'
-  input.accept = 'image/jpeg,image/png'
-  input.onchange = async () => {
-    const file = input.files?.[0]
-    if (file) await processFile(file)
-  }
-  input.click()
+const fileInput = ref<HTMLInputElement | null>(null)
+
+// เมื่อกดปุ่ม ให้ไป trigger input ที่ซ่อนอยู่
+function onUploadClick() {
+  fileInput.value?.click()
 }
+
 </script>
 
 <template>
@@ -118,7 +128,9 @@ async function onUploadClick() {
         <p class="iep__drop-sub">JPEG or PNG</p>
       </div>
 
-      <button class="iep__upload-btn" @click="onUploadClick">
+      <input type="file" ref="fileInput" accept="image/jpeg,image/png" style="display: none" @change="handleFileChange" />
+
+      <button class="ocr__upload-btn" @click="onUploadClick">
         Upload from device
       </button>
 

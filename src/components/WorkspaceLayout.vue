@@ -158,14 +158,17 @@ onMounted(async () => {
         )
         if (buffer) {
           // ── ลำดับสำคัญมาก ──────────────────────────────
-          // set restoredPage ก่อน pdfBuffer เสมอ
           restoredPage.value = session.current_page
           pdfFilePath.value  = session.pdf_file_path       
           pdfFileName.value  = session.pdf_file_path.split(/[\\/]/).pop() ?? ''
           pdfBuffer.value    = buffer                      
+        } else {
+          // 🟢 ย้าย console.warn มาไว้ใน else block (เมื่อหาไฟล์ไม่เจอจะได้ค่าเป็น null)
+          console.warn('[Session] PDF file not found or corrupted:', session.pdf_file_path)
         }
-      } catch {
-        console.warn('[Session] PDF file not found:', session.pdf_file_path)
+      } catch (error) {
+        // catch มีไว้ดักกรณีที่ IPC ล่ม หรือมี Exception ที่คาดไม่ถึง
+        console.error('Failed to invoke file reader:', error)
       }
     }
 

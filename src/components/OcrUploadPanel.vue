@@ -11,7 +11,7 @@ const ALLOWED = ['image/jpeg', 'image/png']
 
 const status   = ref<'idle' | 'success' | 'error'>('idle')
 const fileName = ref('')
-
+const fileInput = ref<HTMLInputElement | null>(null)
 // ── Alert Dialog ──────────────────────────────────────────────────
 const alertVisible = ref(false)
 const alertMessage = ref('')
@@ -29,21 +29,26 @@ function showStatus(s: 'success' | 'error', name = '') {
   }
 }
 
-async function onUploadClick() {
-  const input    = document.createElement('input')
-  input.type     = 'file'
-  input.accept   = 'image/jpeg,image/png'
-  input.onchange = () => {
-    const file = input.files?.[0]
-    if (!file) return
-    if (!ALLOWED.includes(file.type)) {
-      showAlert(`File "${file.name}" Not supported. \nPlease upload only JPEG or PNG files.`)
-      showStatus('error')
-      return
-    }
-    showStatus('success', file.name)
+// เมื่อกดปุ่ม ให้ไป trigger input ที่ซ่อนอยู่
+function onUploadClick() {
+  fileInput.value?.click()
+}
+
+function handleFileChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  if (!ALLOWED.includes(file.type)) {
+    // 🔴 แก้ข้อความให้ตรงกับ SRS (ลบการแสดงชื่อไฟล์ออก)
+    showAlert("Only JPEG and PNG files are supported.") 
+    showStatus('error')
+    // Reset input เพื่อให้เลือกไฟล์เดิมซ้ำได้ถ้าต้องการ
+    target.value = ''
+    return
   }
-  input.click()
+  showStatus('success', file.name)
+  target.value = ''
 }
 </script>
 
@@ -63,7 +68,8 @@ async function onUploadClick() {
         Upload an image file (JPEG or PNG) to extract text using AI.
       </p>
 
-      <!-- Upload button — SRS-3.1.1 -->
+      <input type="file" ref="fileInput" accept="image/jpeg,image/png" style="display: none" @change="handleFileChange" />
+
       <button class="ocr__upload-btn" @click="onUploadClick">
         Upload from device
       </button>
