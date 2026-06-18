@@ -55,10 +55,10 @@ async function handleOpenFile() {
   const result = await window.ipcRenderer.openPdfFile()
   if (!result) return
   
-  if (!result.fileName.toLowerCase().endsWith('.pdf')) {
-    showAlert('ไฟล์ไม่รองรับ', `"${result.fileName}" ไม่ใช่ไฟล์ PDF\nกรุณาเลือกเฉพาะไฟล์ .pdf เท่านั้น`)
-    return
-  }
+if (!result.fileName.toLowerCase().endsWith('.pdf')) {
+  showAlert('Invalid File Type', `"${result.fileName}" is not supported. Please upload a PDF file.`)
+  return
+}
 
 
   const existingSession = await window.ipcRenderer.invoke(
