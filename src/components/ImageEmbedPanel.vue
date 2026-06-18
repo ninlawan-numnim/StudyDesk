@@ -56,7 +56,7 @@ async function processFile(file: File) {
     const safeName = file.name.replace(/[^\w.\-]/g, '_')
     const width    = SIZE_OPTIONS.find(o => o.value === selectedSize.value)!.width
     // ใช้ HTML img tag เพื่อจัดการเรื่อง CSS และขนาดภาพ
-    const markdown = `<img src="${dataUrl}" alt="${safeName}" width="${width}" style="border-radius: 6px; margin: 8px 0;" />`
+    const markdown = `<img src="${dataUrl}" alt="${safeName}" style="width:${width}px; max-width:100%; height:auto; border-radius:6px; margin:8px 0;" />`
     emit('insert-image', markdown)
   } catch {
     showAlert('The image file cannot be read. Please try again.')
@@ -130,7 +130,7 @@ function onUploadClick() {
 
       <input type="file" ref="fileInput" accept="image/jpeg,image/png" style="display: none" @change="handleFileChange" />
 
-      <button class="ocr__upload-btn" @click="onUploadClick">
+      <button class=".iep__upload-btn" @click="onUploadClick">
         Upload from device
       </button>
 
