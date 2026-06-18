@@ -29,26 +29,34 @@ function showStatus(s: 'success' | 'error', name = '') {
   }
 }
 
-// เมื่อกดปุ่ม ให้ไป trigger input ที่ซ่อนอยู่
+// ให้ปุ่มจำลองการคลิกไปที่ input ที่ซ่อนอยู่
 function onUploadClick() {
+  console.log("🎯 1. Upload button clicked!")
   fileInput.value?.click()
 }
 
+// ฟังก์ชันนี้จะทำงานเมื่อผู้ใช้เลือกไฟล์เสร็จ
 function handleFileChange(event: Event) {
+  console.log("📥 2. File change event triggered!")
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
+  console.log("📄 3. Selected file:", file)
+
   if (!file) return
 
+  // 1. ตรวจสอบนามสกุลไฟล์ (Error Handling)
   if (!ALLOWED.includes(file.type)) {
-    // 🔴 แก้ข้อความให้ตรงกับ SRS (ลบการแสดงชื่อไฟล์ออก)
-    showAlert("Only JPEG and PNG files are supported.") 
+    // 🔴 โชว์ Alert Error ตามเอกสาร SRS-3.1.3
+    showAlert("Only JPEG and PNG files are supported.")
     showStatus('error')
-    // Reset input เพื่อให้เลือกไฟล์เดิมซ้ำได้ถ้าต้องการ
-    target.value = ''
+    target.value = '' // Reset ค่า
     return
   }
+  
+  // 2. ถ้าไฟล์ถูกต้อง (Success Flow)
+  // 🟢 โชว์ข้อความสีเขียวบน UI ตามเอกสาร SRS-3.1.2
   showStatus('success', file.name)
-  target.value = ''
+  target.value = '' // Reset ค่าให้เลือกไฟล์เดิมซ้ำได้
 }
 </script>
 

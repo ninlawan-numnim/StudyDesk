@@ -607,9 +607,10 @@ watch([markdownContent, currentPage], scheduleSave)
 /* ── Image embed panel ────────────────────────────────────────── */
 .workspace__image-panel {
   flex-shrink: 0;
-  height: 220px;
+  min-height: 220px; 
+  height: auto;
   border-bottom: 1px solid var(--cream-mid);
-  overflow: hidden;
+  overflow: hidden; 
 }
 
 /* ── Editor & preview areas ───────────────────────────────────── */
