@@ -130,7 +130,7 @@ function onUploadClick() {
 
       <input type="file" ref="fileInput" accept="image/jpeg,image/png" style="display: none" @change="handleFileChange" />
 
-      <button class=".iep__upload-btn" @click="onUploadClick">
+      <button class="iep__upload-btn" @click="onUploadClick">
         Upload from device
       </button>
 
