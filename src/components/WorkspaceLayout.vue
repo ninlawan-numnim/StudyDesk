@@ -36,20 +36,22 @@ function showAlert(title: string, message: string) {
   alertMessage.value = message
   alertVisible.value = true
 }
+// ── Feature 6: Pomodoro toast notification — SRS-6.1.6 ─────────────
+const pomodoroToastMessage = ref<string>('')
+let pomodoroToastTimer: ReturnType<typeof setTimeout> | null = null
+
+function showPomodoroToast(message: string) {
+  pomodoroToastMessage.value = message
+  if (pomodoroToastTimer) clearTimeout(pomodoroToastTimer)
+  pomodoroToastTimer = setTimeout(() => {
+    pomodoroToastMessage.value = ''
+  }, 4000)
+}
 
 // ── Feature 2: Session Recovery state ────────────────
 const isRestoring = ref(false)  // ป้องกัน save ขณะกำลัง restore
 const currentSessionId = ref<number | null>(null)
 
-
-
-let errorTimer: ReturnType<typeof setTimeout> | null = null
-
-function showError(msg: string) {
-  errorMessage.value = msg
-  if (errorTimer) clearTimeout(errorTimer)
-  errorTimer = setTimeout(() => { errorMessage.value = '' }, 3000)
-}
 
 async function handleOpenFile() {
   const result = await window.ipcRenderer.openPdfFile()
@@ -244,6 +246,7 @@ watch([markdownContent, currentPage], scheduleSave)
   <PomodoroTimer
     :session-id="currentSessionId"
     @interval-complete="handlePomodoroComplete"
+    @show-toast="showPomodoroToast"
   />
 </div>
     </header>
@@ -352,12 +355,12 @@ watch([markdownContent, currentPage], scheduleSave)
 
     </main>
 
-    <!-- Error toast — SRS-1.1.2 -->
-    <transition name="toast">
-      <div v-if="errorMessage" class="workspace__error">
-        ⚠️ {{ errorMessage }}
-      </div>
-    </transition>
+    <!-- Pomodoro toast — SRS-6.1.6: non-blocking, auto-dismisses -->
+<transition name="toast">
+  <div v-if="pomodoroToastMessage" class="workspace__pomodoro-toast">
+    🍅 {{ pomodoroToastMessage }}
+  </div>
+</transition>
 
     <!-- Alert Dialog — ไฟล์ผิดประเภท / ข้อผิดพลาดสำคัญ -->
     <AlertDialog
@@ -645,6 +648,22 @@ watch([markdownContent, currentPage], scheduleSave)
   padding: 9px 20px;
   border-radius: 30px;
   font-size: .82rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,.25);
+  z-index: 200;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.workspace__pomodoro-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--green-deep);
+  color: var(--cream);
+  padding: 9px 20px;
+  border-radius: 30px;
+  font-size: .82rem;
+  font-family: var(--font-sans);
   box-shadow: 0 4px 16px rgba(0,0,0,.25);
   z-index: 200;
   pointer-events: none;

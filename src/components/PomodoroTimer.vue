@@ -11,6 +11,7 @@ defineProps<{ sessionId: number | null }>()
 
 const emit = defineEmits<{
   (e: 'interval-complete', mins: number): void
+  (e: 'show-toast', message: string): void
 }>()
 
 type Mode = 'work' | 'break'
@@ -55,6 +56,7 @@ function onIntervalEnd() {
   pause()
   if (mode.value === 'work') {
     emit('interval-complete', 25)
+    emit('show-toast', 'Work session complete! Click Start to begin your 5-minute break.')   // ← เพิ่มบรรทัดนี้
     mode.value        = 'break'
     secondsLeft.value = 5 * 60
   } else {

@@ -1,3 +1,6 @@
+// --------- Preload Script ---------
+// This script runs in the context of the Renderer process, but has access to Node.js APIs.
+//electron/preload.ts
 import { ipcRenderer, contextBridge } from 'electron'
 
 // --------- Expose some API to the Renderer process ---------

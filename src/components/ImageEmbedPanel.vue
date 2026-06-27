@@ -40,10 +40,6 @@ function toBase64(file: File): Promise<string> {
   })
 }
 
-function showError(msg: string) {
-  errorMsg.value = msg
-  setTimeout(() => { errorMsg.value = '' }, 3000)
-}
 
 async function processFile(file: File) {
   if (!ALLOWED.includes(file.type)) {
