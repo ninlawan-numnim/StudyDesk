@@ -6,57 +6,80 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import AlertDialog from './AlertDialog.vue'
+import { extractTextFromImage, OcrError } from '../services/gemini'
 
 const ALLOWED = ['image/jpeg', 'image/png']
 
-const status   = ref<'idle' | 'success' | 'error'>('idle')
-const fileName = ref('')
+const emit = defineEmits<{ 'text-extracted': [text: string] }>()
+
+const status    = ref<'idle' | 'loading' | 'success' | 'error'>('idle')
+const fileName  = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
-// ── Alert Dialog ──────────────────────────────────────────────────
+
 const alertVisible = ref(false)
 const alertMessage = ref('')
+const alertTitle   = ref('Unsupported File')
 
-function showAlert(msg: string) {
+function showAlert(msg: string, title = 'Unsupported File') {
+  alertTitle.value   = title
   alertMessage.value = msg
   alertVisible.value = true
 }
 
-function showStatus(s: 'success' | 'error', name = '') {
-  status.value   = s
-  fileName.value = name
-  if (s === 'success') {
-    setTimeout(() => { status.value = 'idle'; fileName.value = '' }, 3000)
-  }
+function toBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload  = () => resolve(reader.result as string)
+    reader.onerror = () => reject(new Error('Read failed'))
+    reader.readAsDataURL(file)
+  })
 }
 
-// ให้ปุ่มจำลองการคลิกไปที่ input ที่ซ่อนอยู่
 function onUploadClick() {
-  console.log("🎯 1. Upload button clicked!")
   fileInput.value?.click()
 }
 
-// ฟังก์ชันนี้จะทำงานเมื่อผู้ใช้เลือกไฟล์เสร็จ
-function handleFileChange(event: Event) {
-  console.log("📥 2. File change event triggered!")
+async function handleFileChange(event: Event) {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
-  console.log("📄 3. Selected file:", file)
+  target.value = '' // reset ให้เลือกไฟล์เดิมซ้ำได้
 
   if (!file) return
 
-  // 1. ตรวจสอบนามสกุลไฟล์ (Error Handling)
+  // SRS-3.1.1 (เดิม) — ตรวจนามสกุลไฟล์ ไม่เปลี่ยน
   if (!ALLOWED.includes(file.type)) {
-    // 🔴 โชว์ Alert Error ตามเอกสาร SRS-3.1.3
-    showAlert("Only JPEG and PNG files are supported.")
-    showStatus('error')
-    target.value = '' // Reset ค่า
+    showAlert('Only JPEG and PNG files are supported.')
+    status.value = 'error'
     return
   }
-  
-  // 2. ถ้าไฟล์ถูกต้อง (Success Flow)
-  // 🟢 โชว์ข้อความสีเขียวบน UI ตามเอกสาร SRS-3.1.2
-  showStatus('success', file.name)
-  target.value = '' // Reset ค่าให้เลือกไฟล์เดิมซ้ำได้
+
+  // SRS-3.2.1 / 3.2.2 — เช็ค connectivity ก่อนยิง API เสมอ
+  if (!navigator.onLine) {
+    showAlert('Internet connection required for AI features.', 'Offline')
+    status.value = 'error'
+    return
+  }
+
+  status.value   = 'loading'
+  fileName.value = file.name
+
+  try {
+    // SRS-3.2.3 — ส่งภาพไป Gemini พร้อม loading indicator (status = 'loading')
+    const dataUrl = await toBase64(file)
+    const text = await extractTextFromImage(dataUrl, file.type)
+
+    // SRS-3.2.4 — สำเร็จ ส่ง text ให้ parent insert ที่ cursor
+    status.value = 'success'
+    emit('text-extracted', text)
+    setTimeout(() => { status.value = 'idle'; fileName.value = '' }, 3000)
+  } catch (err) {
+    // SRS-3.2.5 — error เฉพาะเจาะจง ไม่ insert อะไร
+    status.value = 'error'
+    const msg = err instanceof OcrError
+      ? err.message
+      : 'Text extraction failed. Please try again.'
+    showAlert(msg, 'Extraction Failed')
+  }
 }
 </script>
 
@@ -78,17 +101,19 @@ function handleFileChange(event: Event) {
 
       <input type="file" ref="fileInput" accept="image/jpeg,image/png" style="display: none" @change="handleFileChange" />
 
-      <button class="ocr__upload-btn" @click="onUploadClick">
-        Upload from device
-      </button>
+      <button class="ocr__upload-btn" :disabled="status === 'loading'" @click="onUploadClick">
+  {{ status === 'loading' ? 'Extracting text…' : 'Upload from device' }}
+</button>
 
-      <!-- Status messages — SRS-3.1.2 -->
-      <transition name="fade">
-        <div v-if="status === 'success'" class="ocr__msg ocr__msg--success">
-          ✓ Upload Successful
-          <span v-if="fileName" class="ocr__filename">{{ fileName }}</span>
-        </div>
-      </transition>
+<div v-if="status === 'loading'" class="ocr__msg ocr__msg--loading">
+  ⏳ Sending to Gemini…
+</div>
+<transition name="fade">
+  <div v-if="status === 'success'" class="ocr__msg ocr__msg--success">
+    ✓ Text Extracted
+    <span v-if="fileName" class="ocr__filename">{{ fileName }}</span>
+  </div>
+</transition>
     </div>
 
     <!-- Alert Dialog -->
