@@ -109,6 +109,11 @@ function handleInsertImage(markdown: string) {
   showImagePanel.value = false
 }
 
+function handleOcrTextExtracted(text: string) {
+  editorRef.value?.insertAtCursor(text)
+  showOcrPanel.value = false
+}
+
 // ── Formatting helpers (B, I, H1, H2) — placeholders รอ feature อื่น ──
 function handleFormat(type: 'bold' | 'italic' | 'h1' | 'h2') {
   const wrap: Record<string, [string, string]> = {
@@ -333,7 +338,7 @@ watch([markdownContent, currentPage], scheduleSave)
         </transition>
         <transition name="slide-down">
           <div v-if="showOcrPanel" class="workspace__image-panel">
-            <OcrUploadPanel />
+            <OcrUploadPanel @text-extracted="handleOcrTextExtracted" />
           </div>
         </transition>
 
