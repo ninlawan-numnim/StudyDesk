@@ -18,7 +18,7 @@ export async function extractTextFromImage(
   dataUrl: string,
   mimeType: string
 ): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
   const base64Data = dataUrl.split(',')[1] ?? dataUrl; // ตัด prefix "data:image/png;base64,"
 
