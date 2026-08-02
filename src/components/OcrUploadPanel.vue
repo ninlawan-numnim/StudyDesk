@@ -87,7 +87,6 @@ async function handleFileChange(event: Event) {
   <div class="ocr">
     <div class="ocr__header">
       <span class="ocr__title">🔍 OCR — Image Text Extraction</span>
-      <span class="ocr__badge">Progress I · UI Only</span>
     </div>
 
     <div class="ocr__body">
