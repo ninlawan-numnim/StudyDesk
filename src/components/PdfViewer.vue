@@ -111,7 +111,30 @@ async function goToPage(delta: number) {
   currentPage.value = next
   await renderPage(currentPage.value)
 }
+
+// ── Feature 5/7 source extraction — pulls raw text for every page  ──
+// via pdf.js getTextContent(). Used by AI Summarization (SRS-5.1.1)
+// and, later, AI Quiz Generator (SRS-7.1.x) when source includes PDF.
+async function getFullText(): Promise<string> {
+  if (!pdfDoc.value) return ''
+
+  const pages: string[] = []
+  for (let i = 1; i <= pdfDoc.value.numPages; i++) {
+    const page = await pdfDoc.value.getPage(i)
+    const content = await page.getTextContent()
+    const pageText = content.items
+      .map((item) => ('str' in item ? item.str : ''))
+      .join(' ')
+    pages.push(pageText)
+  }
+  return pages.join('\n\n')
+}
+
+defineExpose({ getFullText })
+
 </script>
+
+
 
 <template>
   <div class="pdf-viewer">
