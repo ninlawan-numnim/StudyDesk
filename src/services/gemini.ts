@@ -48,20 +48,6 @@ If there is no readable text in the image, respond with exactly: NO_TEXT_FOUND`;
 }
 // ─────────────────────────────────────────────────────────────────────
 // Feature 5 — AI Summarization (SRS-5.1.x)
-// สถานะ: STUB — ต่อ UI (AiSummaryPanel.vue) ก่อน ตัว logic เรียก Gemini
-// จริงจะทำใน Step 2 (Service Layer)
-// ─────────────────────────────────────────────────────────────────────
-export type SummarySource = 'pdf' | 'notes' | 'both';
-
-// แยกชนิด error เพื่อให้ UI แสดงข้อความที่ "specific" ตาม SRS-5.1.6
-export class SummaryError extends Error {
-  constructor(message: string, public code: 'EMPTY_SOURCE' | 'CONTEXT_LIMIT' | 'API_ERROR') {
-    super(message);
-    this.name = 'SummaryError';
-  }
-}
-// ─────────────────────────────────────────────────────────────────────
-// Feature 5 — AI Summarization (SRS-5.1.x)
 // ─────────────────────────────────────────────────────────────────────
 export type SummarySource = 'pdf' | 'notes' | 'both';
 

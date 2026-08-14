@@ -26,11 +26,18 @@ const markdownContent = ref<string>('')
 const errorMessage    = ref<string>('')
 const currentPage     = ref<number>(1)
 const pdfFilePath = ref<string>('') 
+  // ── Track restored page สำหรับส่งให้ PdfViewer ────────
+const restoredPage = ref(1)
+const editorRef      = ref<InstanceType<typeof MarkdownEditor> | null>(null)
+const showImagePanel = ref(false)
+const showOcrPanel = ref(false)
 
 // ── Alert Dialog state ────────────────────────────────────────────
 const alertVisible = ref(false)
 const alertMessage = ref('')
 const alertTitle   = ref('')
+const pdfViewerRef   = ref<InstanceType<typeof PdfViewer> | null>(null)   // ← เพิ่ม
+
 
 function showAlert(title: string, message: string) {
   alertTitle.value   = title
@@ -101,9 +108,6 @@ function handlePageChanged(page: number) {
 const activeTab = ref<'write' | 'preview'>('write')
 
 // ── Feature 4: Visual Reference Embedding ─────────────────────────
-const editorRef      = ref<InstanceType<typeof MarkdownEditor> | null>(null)
-const showImagePanel = ref(false)
-const showOcrPanel = ref(false)
 
 function handleInsertImage(markdown: string) {
   editorRef.value?.insertAtCursor(markdown)
@@ -122,6 +126,10 @@ function handleSummaryGenerated(markdown: string) {
   showSummaryPanel.value = false
 }
 
+// SRS-5.1.1 — ดึง text เต็มของ PDF ที่เปิดอยู่ ผ่าน PdfViewer.getFullText()
+async function getPdfText(): Promise<string> {
+  return (await pdfViewerRef.value?.getFullText()) ?? ''
+}
 // ── Formatting helpers (B, I, H1, H2) — placeholders รอ feature อื่น ──
 function handleFormat(type: 'bold' | 'italic' | 'h1' | 'h2') {
   const wrap: Record<string, [string, string]> = {
@@ -197,8 +205,7 @@ onMounted(async () => {
   }
 })
 
-// ── Track restored page สำหรับส่งให้ PdfViewer ────────
-const restoredPage = ref(1)
+
 
 // ── Auto-save — SRS-2.1.1 ────────────────────────────
 // debounce เพื่อไม่ให้ save ทุก keystroke
@@ -270,6 +277,7 @@ watch([markdownContent, currentPage], scheduleSave)
       <!-- Left: PDF Viewer -->
       <section class="workspace__pane">
         <PdfViewer
+            ref="pdfViewerRef"
             :pdf-buffer="pdfBuffer"
             :initial-page="restoredPage"
             @page-changed="handlePageChanged"
@@ -347,10 +355,11 @@ watch([markdownContent, currentPage], scheduleSave)
         <transition name="slide-down">
             <div v-if="showSummaryPanel" class="workspace__image-panel">
               <AiSummaryPanel
-                :pdf-available="!!pdfBuffer"
-                :notes-content="markdownContent"
-                @summary-generated="handleSummaryGenerated"
-              />
+                  :pdf-available="!!pdfBuffer"
+                  :notes-content="markdownContent"
+                  :get-pdf-text="getPdfText"
+                  @summary-generated="handleSummaryGenerated"
+                />
             </div>
           </transition>
 

@@ -9,6 +9,9 @@ type SummarySource = 'pdf' | 'notes' | 'both'
 const props = defineProps<{
   pdfAvailable: boolean
   notesContent: string
+  // ดึง text เต็มของ PDF ที่เปิดอยู่ — มาจาก PdfViewer.getFullText()
+  // ผ่าน WorkspaceLayout (เป็น async เพราะ pdf.js อ่านทีละหน้า)
+  getPdfText: () => Promise<string>
 }>()
 
 const emit = defineEmits<{ 'summary-generated': [markdown: string] }>()
@@ -22,7 +25,7 @@ const SOURCE_OPTIONS = [
 
 const selectedSource = ref<SummarySource>('both')
 
-const status = ref<'idle' | 'loading' | 'success' | 'error'>('idle')
+const status = ref<'idle' | 'reading-pdf' | 'loading' | 'success' | 'error'>('idle')
 
 // ── Alert Dialog state ───────────────────────────────────────────────
 const alertVisible = ref(false)
@@ -45,7 +48,25 @@ const hasContent = computed(() => {
   return props.pdfAvailable || hasNotes.value
 })
 
-const generateDisabled = computed(() => status.value === 'loading' || !hasContent.value)
+const generateDisabled = computed(
+  () => status.value === 'loading' || status.value === 'reading-pdf' || !hasContent.value
+)
+
+// ── ประกอบ text จริงตาม source ที่เลือก ──────────────────────────────
+async function buildSourceText(): Promise<string> {
+  const notes = props.notesContent.trim()
+
+  const needsPdf = selectedSource.value !== 'notes' && props.pdfAvailable
+  let pdfText = ''
+  if (needsPdf) {
+    status.value = 'reading-pdf'
+    pdfText = (await props.getPdfText()).trim()
+  }
+
+  if (selectedSource.value === 'pdf')   return pdfText
+  if (selectedSource.value === 'notes') return notes
+  return [pdfText, notes].filter(Boolean).join('\n\n---\n\n')
+}
 
 // ── Generate — SRS-5.1.4 / 5.1.5 / 5.1.6 ─────────────────────────────
 async function handleGenerate() {
@@ -57,9 +78,11 @@ async function handleGenerate() {
 
   status.value = 'loading'
 
-  try {
-    // TODO (Step 2 — Service Layer): ส่ง text จริงของ PDF/Notes ตาม source ที่เลือก
-    const summary = await summarizeContent(selectedSource.value, props.notesContent)
+ try {
+    const sourceText = await buildSourceText()
+    status.value = 'loading'
+
+    const summary = await summarizeContent(selectedSource.value, sourceText)
 
     status.value = 'success'
     emit('summary-generated', `\n## Summary\n\n${summary}\n`)
@@ -107,9 +130,11 @@ async function handleGenerate() {
         :disabled="generateDisabled"
         @click="handleGenerate"
       >
-        {{ status === 'loading' ? 'Summarizing…' : 'Generate Summary' }}
+       {{ status === 'reading-pdf' ? 'Reading PDF…' : status === 'loading' ? 'Summarizing…' : 'Generate Summary' }}
       </button>
-
+      <div v-if="status === 'reading-pdf'" class="asp__msg asp__msg--loading">
+        📄 Extracting PDF text…
+      </div>
       <div v-if="status === 'loading'" class="asp__msg asp__msg--loading">
         ⏳ Sending to Gemini…
       </div>
