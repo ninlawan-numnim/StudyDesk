@@ -17,6 +17,7 @@ import AlertDialog     from './AlertDialog.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import PomodoroTimer from './PomodoroTimer.vue'
 import OcrUploadPanel from './OcrUploadPanel.vue'
+import AiSummaryPanel from './AiSummaryPanel.vue'
 
 // ── Feature 1 ─────────────────────────────────────────────────────
 const pdfBuffer       = ref<number[] | null>(null)
@@ -112,6 +113,13 @@ function handleInsertImage(markdown: string) {
 function handleOcrTextExtracted(text: string) {
   editorRef.value?.insertAtCursor(text)
   showOcrPanel.value = false
+}
+
+const showSummaryPanel = ref(false)
+// ── Feature 5: AI Summarization — SRS-5.1.5 ─────────────────────────
+function handleSummaryGenerated(markdown: string) {
+  editorRef.value?.insertAtCursor(markdown)
+  showSummaryPanel.value = false
 }
 
 // ── Formatting helpers (B, I, H1, H2) — placeholders รอ feature อื่น ──
@@ -262,10 +270,10 @@ watch([markdownContent, currentPage], scheduleSave)
       <!-- Left: PDF Viewer -->
       <section class="workspace__pane">
         <PdfViewer
-  :pdf-buffer="pdfBuffer"
-  :initial-page="restoredPage"
-  @page-changed="handlePageChanged"
-/>
+            :pdf-buffer="pdfBuffer"
+            :initial-page="restoredPage"
+            @page-changed="handlePageChanged"
+          />
       </section>
 
       <div class="workspace__divider" />
@@ -295,7 +303,7 @@ watch([markdownContent, currentPage], scheduleSave)
             class="editor-bar__fmt"
             :class="{ 'editor-bar__fmt--active': showImagePanel }"
             title="Insert Image"
-            @click="showImagePanel = !showImagePanel"
+            @click="showImagePanel = !showImagePanel; showOcrPanel = false; showSummaryPanel = false"
           >
             🖼
           </button>
@@ -304,13 +312,13 @@ watch([markdownContent, currentPage], scheduleSave)
 
           <!-- +AI placeholder — รอ feature อื่น -->
           <button
-              class="editor-bar__ai"
-              :class="{ 'editor-bar__ai--active': showOcrPanel }"
-              title="OCR - Image Text Extraction"
-              @click="showOcrPanel = !showOcrPanel; showImagePanel = false"
-            >
-              + AI
-            </button>
+            class="editor-bar__ai"
+            :class="{ 'editor-bar__ai--active': showSummaryPanel }"
+            title="AI Summarization"
+            @click="showSummaryPanel = !showSummaryPanel; showImagePanel = false; showOcrPanel = false"
+          >
+            Summarize
+          </button>
 
           <!-- Spacer -->
           <div class="editor-bar__spacer" />
@@ -337,10 +345,14 @@ watch([markdownContent, currentPage], scheduleSave)
           </div>
         </transition>
         <transition name="slide-down">
-          <div v-if="showOcrPanel" class="workspace__image-panel">
-            <OcrUploadPanel @text-extracted="handleOcrTextExtracted" />
-          </div>
-        </transition>
+            <div v-if="showSummaryPanel" class="workspace__image-panel">
+              <AiSummaryPanel
+                :pdf-available="!!pdfBuffer"
+                :notes-content="markdownContent"
+                @summary-generated="handleSummaryGenerated"
+              />
+            </div>
+          </transition>
 
         <!-- Write tab: Markdown Editor -->
         <div v-show="activeTab === 'write'" class="workspace__editor-area">

@@ -44,4 +44,33 @@ If there is no readable text in the image, respond with exactly: NO_TEXT_FOUND`;
     console.error('[OCR] Gemini API error:', err);
     throw new OcrError('Text extraction failed. Please try again later.', 'API_ERROR');
   }
+  
+}
+// ─────────────────────────────────────────────────────────────────────
+// Feature 5 — AI Summarization (SRS-5.1.x)
+// สถานะ: STUB — ต่อ UI (AiSummaryPanel.vue) ก่อน ตัว logic เรียก Gemini
+// จริงจะทำใน Step 2 (Service Layer)
+// ─────────────────────────────────────────────────────────────────────
+export type SummarySource = 'pdf' | 'notes' | 'both';
+
+// แยกชนิด error เพื่อให้ UI แสดงข้อความที่ "specific" ตาม SRS-5.1.6
+export class SummaryError extends Error {
+  constructor(message: string, public code: 'EMPTY_SOURCE' | 'CONTEXT_LIMIT' | 'API_ERROR') {
+    super(message);
+    this.name = 'SummaryError';
+  }
+}
+
+/**
+ * Feature 5 — SRS-5.1.4 ~ 5.1.6
+ * TODO (Step 2 - Service Layer):
+ *   - ดึง text จริงจาก PDF (pdf.js getTextContent) ตาม `source`
+ *   - ประกอบ prompt สรุปเนื้อหาแล้วยิง genAI.getGenerativeModel(...)
+ *   - throw SummaryError('CONTEXT_LIMIT', ...) ถ้าเนื้อหารวมเกิน context limit
+ */
+export async function summarizeContent(
+  _source: SummarySource,
+  _text: string
+): Promise<string> {
+  throw new SummaryError('Summarization service is not implemented yet.', 'API_ERROR');
 }
