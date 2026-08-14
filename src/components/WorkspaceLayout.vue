@@ -14,7 +14,7 @@ import PdfViewer       from './PdfViewer.vue'
 import MarkdownEditor  from './MarkdownEditor.vue'
 import ImageEmbedPanel from './ImageEmbedPanel.vue'
 import AlertDialog     from './AlertDialog.vue'
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import PomodoroTimer from './PomodoroTimer.vue'
 import OcrUploadPanel from './OcrUploadPanel.vue'
 import AiSummaryPanel from './AiSummaryPanel.vue'
@@ -38,6 +38,24 @@ const alertMessage = ref('')
 const alertTitle   = ref('')
 const pdfViewerRef   = ref<InstanceType<typeof PdfViewer> | null>(null)   // ← เพิ่ม
 
+// ── AI+ menu (OCR / Summary / Quiz) ─────────────────────────────────
+const showAiMenu   = ref(false)
+const aiMenuWrapRef = ref<HTMLElement | null>(null)
+
+function openAiFeature(feature: 'ocr' | 'summary') {
+  showImagePanel.value = false
+  showOcrPanel.value     = feature === 'ocr'
+  showSummaryPanel.value = feature === 'summary'
+  showAiMenu.value = false
+}
+
+function handleClickOutsideAiMenu(e: MouseEvent) {
+  if (showAiMenu.value && aiMenuWrapRef.value && !aiMenuWrapRef.value.contains(e.target as Node)) {
+    showAiMenu.value = false
+  }
+}
+onMounted(() => document.addEventListener('click', handleClickOutsideAiMenu))
+onUnmounted(() => document.removeEventListener('click', handleClickOutsideAiMenu))
 
 function showAlert(title: string, message: string) {
   alertTitle.value   = title
@@ -240,6 +258,17 @@ async function handlePomodoroComplete(mins: number) {
   })
 }
 
+function toggleAiMenu() {
+  // ถ้ามี panel (OCR/Summary) เปิดอยู่ → กด AI+ ซ้ำ = ปิด panel นั้น
+  if (showOcrPanel.value || showSummaryPanel.value) {
+    showOcrPanel.value = false
+    showSummaryPanel.value = false
+    showAiMenu.value = false
+    return
+  }
+  showAiMenu.value = !showAiMenu.value
+}
+
 
 // Watch ทุก state ที่ต้องการ save
 watch([markdownContent, currentPage], scheduleSave)
@@ -311,23 +340,50 @@ watch([markdownContent, currentPage], scheduleSave)
             class="editor-bar__fmt"
             :class="{ 'editor-bar__fmt--active': showImagePanel }"
             title="Insert Image"
-            @click="showImagePanel = !showImagePanel; showOcrPanel = false; showSummaryPanel = false"
+            @click="showImagePanel = !showImagePanel; showOcrPanel = false; showSummaryPanel = false; showAiMenu = false"
           >
             🖼
           </button>
 
           <div class="editor-bar__sep" />
 
-          <!-- +AI placeholder — รอ feature อื่น -->
-          <button
-            class="editor-bar__ai"
-            :class="{ 'editor-bar__ai--active': showSummaryPanel }"
-            title="AI Summarization"
-            @click="showSummaryPanel = !showSummaryPanel; showImagePanel = false; showOcrPanel = false"
-          >
-            Summarize
-          </button>
+         <!-- AI+ menu — expands into OCR / Summary / Quiz -->
+          <div class="editor-bar__ai-menu-wrap" ref="aiMenuWrapRef">
+            <button
+              class="editor-bar__ai"
+              :class="{ 'editor-bar__ai--active': showAiMenu || showOcrPanel || showSummaryPanel }"
+              title="AI Features"
+              @click="toggleAiMenu"
+            >
+              AI+
+            </button>
 
+            <transition name="ai-menu">
+              <div v-if="showAiMenu" class="editor-bar__ai-menu">
+                <button
+                  class="editor-bar__ai-menu-item"
+                  :class="{ 'editor-bar__ai-menu-item--active': showOcrPanel }"
+                  @click="openAiFeature('ocr')"
+                >
+                  🔎 OCR
+                </button>
+                <button
+                  class="editor-bar__ai-menu-item"
+                  :class="{ 'editor-bar__ai-menu-item--active': showSummaryPanel }"
+                  @click="openAiFeature('summary')"
+                >
+                  📝 Summary
+                </button>
+                <button
+                  class="editor-bar__ai-menu-item editor-bar__ai-menu-item--disabled"
+                  title="Coming soon — Feature #7"
+                  disabled
+                >
+                  🧩 Quiz
+                </button>
+              </div>
+            </transition>
+          </div>
           <!-- Spacer -->
           <div class="editor-bar__spacer" />
 
@@ -350,6 +406,11 @@ watch([markdownContent, currentPage], scheduleSave)
         <transition name="slide-down">
           <div v-if="showImagePanel" class="workspace__image-panel">
             <ImageEmbedPanel @insert-image="handleInsertImage" />
+          </div>
+        </transition>
+        <transition name="slide-down">
+          <div v-if="showOcrPanel" class="workspace__image-panel">
+            <OcrUploadPanel @text-extracted="handleOcrTextExtracted" />
           </div>
         </transition>
         <transition name="slide-down">
@@ -591,8 +652,7 @@ watch([markdownContent, currentPage], scheduleSave)
   background: var(--green-pale);
   color: var(--green-deep);
 }
-
-/* +AI button */
+/* AI+ button */
 .editor-bar__ai {
   background: var(--green-deep);
   color: var(--cream);
@@ -605,6 +665,57 @@ watch([markdownContent, currentPage], scheduleSave)
   opacity: .85;
   white-space: nowrap;
   transition: background .15s, opacity .15s;
+}
+
+/* AI+ dropdown menu */
+.editor-bar__ai-menu-wrap {
+  position: relative;
+}
+
+.editor-bar__ai-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--cream);
+  border: 1px solid var(--cream-mid);
+  border-radius: 10px;
+  padding: 5px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.15);
+  z-index: 50;
+  min-width: 140px;
+}
+
+.editor-bar__ai-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: .8rem;
+  font-family: var(--font-sans);
+  color: var(--text-mid);
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  transition: background .12s, color .12s;
+}
+.editor-bar__ai-menu-item:hover:not(:disabled) {
+  background: var(--green-pale);
+  color: var(--green-deep);
+}
+.editor-bar__ai-menu-item--active {
+  background: var(--green-pale);
+  color: var(--green-deep);
+  font-weight: 600;
+}
+.editor-bar__ai-menu-item--disabled {
+  opacity: .4;
+  cursor: not-allowed;
 }
 
 /* Write / Preview tabs */
@@ -710,6 +821,8 @@ watch([markdownContent, currentPage], scheduleSave)
 
 .slide-down-enter-active, .slide-down-leave-active { transition: all .2s ease; }
 .slide-down-enter-from, .slide-down-leave-to { opacity: 0; transform: translateY(-8px); }
+.ai-menu-enter-active, .ai-menu-leave-active { transition: all .15s ease; }
+.ai-menu-enter-from, .ai-menu-leave-to { opacity: 0; transform: translateY(-6px); }
 
 /* ── Scrollbars ───────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

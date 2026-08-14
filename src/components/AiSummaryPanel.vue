@@ -52,9 +52,15 @@ const generateDisabled = computed(
   () => status.value === 'loading' || status.value === 'reading-pdf' || !hasContent.value
 )
 
+// ตัด base64 image data-URI ออกก่อนส่งไป Gemini
+// (ไม่งั้น notes ที่มีรูปแทรกจะยาวเป็นแสนตัวอักษรจนชน context limit ปลอมๆ)
+function stripEmbeddedImages(markdown: string): string {
+  return markdown.replace(/<img[^>]*src=["']data:[^"']*["'][^>]*>/gi, '[Embedded Image]')
+}
+
 // ── ประกอบ text จริงตาม source ที่เลือก ──────────────────────────────
 async function buildSourceText(): Promise<string> {
-  const notes = props.notesContent.trim()
+ const notes = stripEmbeddedImages(props.notesContent).trim()
 
   const needsPdf = selectedSource.value !== 'notes' && props.pdfAvailable
   let pdfText = ''
