@@ -2,11 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockGenerateContent = vi.fn()
 
-vi.mock('@google/generative-ai', () => ({
-  GoogleGenerativeAI: vi.fn().mockImplementation(() => ({
-    getGenerativeModel: () => ({ generateContent: mockGenerateContent }),
-  })),
-}))
+vi.mock('@google/generative-ai', () => {
+  class MockGoogleGenerativeAI {
+    getGenerativeModel() {
+      return { generateContent: mockGenerateContent }
+    }
+  }
+  return { GoogleGenerativeAI: MockGoogleGenerativeAI }
+})
 
 import { generateQuiz, QuizError } from './gemini'
 
