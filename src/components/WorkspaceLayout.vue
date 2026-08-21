@@ -272,10 +272,8 @@ function toggleAiMenu() {
   }
   showAiMenu.value = !showAiMenu.value
 }
-// TODO (Step 3): บันทึกลง SQLite ทันทีที่ generate เสร็จ + เปิด quiz-taking
-// modal (Step 4) แทนการ log เฉยๆ แบบนี้
-function handleQuizGenerated(questions: unknown[], style: string) {
-  console.log('[Quiz] generated', questions.length, 'questions, style:', style)
+function handleQuizGenerated(markdown: string) {
+  editorRef.value?.insertAtCursor(markdown)
   showQuizPanel.value = false
 }
 
