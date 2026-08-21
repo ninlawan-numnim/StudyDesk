@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { computeStyleDistribution, countByDifficulty, withinTolerance, toleranceFor } from "./quizDistribution.ts";
 
+
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
 
 // แยกชนิด error เพื่อให้ UI แสดงข้อความที่ "specific" ตาม SRS-3.2.5
@@ -142,13 +143,12 @@ export type QuizDifficulty = 'recall' | 'understanding' | 'application';
 
 export interface QuizQuestion {
   question:    string;
-  choices:     string[];   // SRS-7.1.6 — plausible distractors รวมอยู่ในนี้
-  answer:      number;     // index ของ choices ที่ถูกต้อง
+  choices:     string[];
+  answer:      number;
   explanation: string;
   difficulty:  QuizDifficulty;
 }
 
-// แยกชนิด error เพื่อให้ UI แสดงข้อความที่ "specific" ตาม SRS-7.1.9
 export class QuizError extends Error {
   constructor(
     message: string,
@@ -159,7 +159,7 @@ export class QuizError extends Error {
   }
 }
 
-const MAX_QUIZ_INPUT_CHARS = 100_000; // เดียวกับ Feature 5
+const MAX_QUIZ_INPUT_CHARS = 100_000;
 
 function sourceLabelQuiz(source: QuizSource): string {
   if (source === 'pdf')   return 'PDF content';
@@ -176,7 +176,6 @@ function styleInstruction(count: QuizCount, style: QuizStyle): string {
     `${target.understanding} "understanding", and ${target.application} "application" questions.`;
 }
 
-// ตรวจโครงสร้าง JSON ที่ Gemini ส่งกลับมาแบบ runtime — กัน MALFORMED (SRS-7.1.9)
 function isValidQuizQuestion(q: unknown): q is QuizQuestion {
   if (typeof q !== 'object' || q === null) return false;
   const r = q as Record<string, unknown>;
@@ -190,12 +189,6 @@ function isValidQuizQuestion(q: unknown): q is QuizQuestion {
   );
 }
 
-/**
- * Feature 7 — SRS-7.1.3 ~ 7.1.6, 7.1.9
- * ส่ง source text ไป Gemini พร้อมสั่ง JSON output ตรงตาม schema,
- * validate โครงสร้างที่ได้กลับมา, log warning (ไม่ reject) ถ้าสัดส่วน
- * difficulty จริงเบี่ยงจากเป้าหมายเกิน tolerance ของ SRS-7.1.5
- */
 export async function generateQuiz(
   source: QuizSource,
   count: QuizCount,
@@ -229,8 +222,8 @@ Respond with ONLY a JSON array (no markdown, no preamble), where each item has e
 {
   "question": string,
   "choices": string[4],
-  "answer": number,        // index into "choices" of the correct answer
-  "explanation": string,   // why the answer is correct, 1-2 sentences
+  "answer": number,
+  "explanation": string,
   "difficulty": "recall" | "understanding" | "application"
 }
 
@@ -268,7 +261,6 @@ ${trimmed}`;
 
   const questions = parsed as QuizQuestion[];
 
-  // SRS-7.1.5 — log-only warning, ไม่ reject quiz
   const target = computeStyleDistribution(count, style);
   const actual = countByDifficulty(questions);
   if (!withinTolerance(actual, target, toleranceFor(count))) {
