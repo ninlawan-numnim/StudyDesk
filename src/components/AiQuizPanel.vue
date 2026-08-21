@@ -1,11 +1,25 @@
+<!-- src/components/AiQuizPanel.vue -->
+<!-- Feature 7: AI Quiz Generator — Settings UI                        -->
+<!-- SRS-7.1.1: source / question count / style selectors              -->
+<!-- SRS-7.1.2: validate selected source has content before API        -->
+<!-- SRS-7.1.9: specific error message on failure                      -->
+<!-- NOTE: actual Gemini call is stubbed in services/gemini.ts for now -->
+<!--       (Step 3 — Service Layer will replace the stub body)         -->
+<!-- NOTE: on success this panel just emits 'quiz-generated' — the     -->
+<!--       quiz-taking modal (Step 4) and SQLite save (Step 2/5) are   -->
+<!--       wired in by the parent, not by this panel                  -->
+
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import AlertDialog from './AlertDialog.vue'
-// ⚠️ Note: You will need to create generateQuiz in your gemini service
-import { generateQuiz, QuizError } from '../services/gemini'
-
-type QuizSource = 'pdf' | 'notes' | 'both'
-type QuizStyle = 'mcq' | 'tf' | 'short'
+import {
+  generateQuiz,
+  QuizError,
+  type QuizSource,
+  type QuizCount,
+  type QuizStyle,
+  type QuizQuestion,
+} from '../services/gemini'
 
 const props = defineProps<{
   pdfAvailable: boolean
@@ -13,45 +27,42 @@ const props = defineProps<{
   getPdfText: () => Promise<string>
 }>()
 
-const emit = defineEmits<{ 'quiz-generated': [markdown: string] }>()
+const emit = defineEmits<{ 'quiz-generated': [questions: QuizQuestion[], style: QuizStyle] }>()
 
-// ── Selectors ────────────────────────────────────────────────────────
+// ── SRS-7.1.1: settings ──────────────────────────────────────────────
 const SOURCE_OPTIONS = [
+  { label: 'Both',  value: 'both'  },
   { label: 'PDF',   value: 'pdf'   },
   { label: 'Notes', value: 'notes' },
-  { label: 'Both',  value: 'both'  },
 ] as const
 
-const COUNT_OPTIONS = [
-  { label: '3', value: 3 },
-  { label: '5', value: 5 },
-  { label: '10', value: 10 },
-] as const
+const COUNT_OPTIONS: QuizCount[] = [5, 10, 20]
 
 const STYLE_OPTIONS = [
-  { label: 'Multiple Choice', value: 'mcq' },
-  { label: 'True/False', value: 'tf' },
-  { label: 'Short Answer', value: 'short' },
+  { label: 'Recall',       value: 'recall'        },
+  { label: 'Understand',   value: 'understanding'  },
+  { label: 'Application',  value: 'application'    },
+  { label: 'Mixed',        value: 'mixed'          },
 ] as const
 
 const selectedSource = ref<QuizSource>('both')
-const selectedCount = ref<number>(5)
-const selectedStyle = ref<QuizStyle>('mcq')
+const selectedCount  = ref<QuizCount>(10)
+const selectedStyle  = ref<QuizStyle>('mixed')
 
-const status = ref<'idle' | 'reading-pdf' | 'loading' | 'success' | 'error'>('idle')
+const status = ref<'idle' | 'reading-pdf' | 'loading' | 'error'>('idle')
 
 // ── Alert Dialog state ───────────────────────────────────────────────
 const alertVisible = ref(false)
 const alertMessage = ref('')
-const alertTitle   = ref('Quiz Failed')
+const alertTitle   = ref('Quiz Generation Failed')
 
-function showAlert(msg: string, title = 'Quiz Failed') {
+function showAlert(msg: string, title = 'Quiz Generation Failed') {
   alertTitle.value   = title
   alertMessage.value = msg
   alertVisible.value = true
 }
 
-// ── content-availability check ──────────────────────────────────────
+// ── SRS-7.1.2: content-availability check (mirrors AiSummaryPanel) ──
 const hasNotes = computed(() => props.notesContent.trim().length > 0)
 
 const hasContent = computed(() => {
@@ -64,6 +75,7 @@ const generateDisabled = computed(
   () => status.value === 'loading' || status.value === 'reading-pdf' || !hasContent.value
 )
 
+// ตัด base64 image data-URI ออกก่อนส่ง (เหมือน AiSummaryPanel)
 function stripEmbeddedImages(markdown: string): string {
   return markdown.replace(/<img[^>]*src=["']data:[^"']*["'][^>]*>/gi, '[Embedded Image]')
 }
@@ -83,36 +95,32 @@ async function buildSourceText(): Promise<string> {
   return [pdfText, notes].filter(Boolean).join('\n\n---\n\n')
 }
 
-// ── Generate ─────────────────────────────────────────────────────────
+// ── Generate — SRS-7.1.2 ~ 7.1.4, 7.1.9 ──────────────────────────────
 async function handleGenerate() {
   if (!hasContent.value) {
-    showAlert('The selected source has no content to generate a quiz.', 'Nothing to Read')
+    showAlert('The selected source has no content to generate a quiz from.', 'Nothing to Generate')
     return
   }
-
-  status.value = 'loading'
 
   try {
     const sourceText = await buildSourceText()
     status.value = 'loading'
 
-    // Pass the new selector values into the API function
-    const quiz = await generateQuiz(
-      selectedSource.value, 
-      sourceText, 
-      selectedCount.value, 
-      selectedStyle.value
+    const questions = await generateQuiz(
+      selectedSource.value,
+      selectedCount.value,
+      selectedStyle.value,
+      sourceText
     )
 
-    status.value = 'success'
-    emit('quiz-generated', `\n## Quiz\n\n${quiz}\n`)
-    setTimeout(() => { status.value = 'idle' }, 3000)
+    status.value = 'idle'
+    emit('quiz-generated', questions, selectedStyle.value)
   } catch (err) {
     status.value = 'error'
     const msg = err instanceof QuizError
-      ? (err as QuizError).message
+      ? err.message
       : 'Quiz generation failed. Please try again.'
-    showAlert(msg, 'Quiz Failed')
+    showAlert(msg, 'Quiz Generation Failed')
   }
 }
 </script>
@@ -120,84 +128,70 @@ async function handleGenerate() {
 <template>
   <div class="aqp">
     <div class="aqp__header">
-      <span class="aqp__title">🎯 AI Quiz Generator</span>
-      
-      <div class="aqp__selectors">
-        <!-- Source selector -->
-        <div class="aqp__pill-group">
-          <button
-            v-for="opt in SOURCE_OPTIONS"
-            :key="opt.value"
-            class="aqp__pill-btn"
-            :class="{ 'aqp__pill-btn--active': selectedSource === opt.value }"
-            @click="selectedSource = opt.value"
-          >
-            {{ opt.label }}
-          </button>
-        </div>
-        
-        <div class="aqp__divider"></div>
+      <span class="aqp__title">🧩 AI Quiz Generator</span>
 
-        <!-- Count selector -->
-        <div class="aqp__pill-group">
-          <button
-            v-for="opt in COUNT_OPTIONS"
-            :key="opt.value"
-            class="aqp__pill-btn"
-            :class="{ 'aqp__pill-btn--active': selectedCount === opt.value }"
-            @click="selectedCount = opt.value"
-          >
-            {{ opt.label }} Items
-          </button>
-        </div>
-
-        <div class="aqp__divider"></div>
-
-        <!-- Style selector -->
-        <div class="aqp__pill-group">
-          <button
-            v-for="opt in STYLE_OPTIONS"
-            :key="opt.value"
-            class="aqp__pill-btn"
-            :class="{ 'aqp__pill-btn--active': selectedStyle === opt.value }"
-            @click="selectedStyle = opt.value"
-          >
-            {{ opt.label }}
-          </button>
-        </div>
+      <div class="aqp__sources">
+        <button
+          v-for="opt in SOURCE_OPTIONS"
+          :key="opt.value"
+          class="aqp__pill"
+          :class="{ 'aqp__pill--active': selectedSource === opt.value }"
+          @click="selectedSource = opt.value"
+        >
+          {{ opt.label }}
+        </button>
       </div>
     </div>
 
     <div class="aqp__body">
-      <div class="aqp__icon-wrap">
-        <span class="aqp__icon">🧠</span>
-      </div>
+      <div class="aqp__settings-row">
+        <div class="aqp__setting-group">
+          <p class="aqp__setting-label">Question count</p>
+          <div class="aqp__pills">
+            <button
+              v-for="n in COUNT_OPTIONS"
+              :key="n"
+              class="aqp__pill"
+              :class="{ 'aqp__pill--active': selectedCount === n }"
+              @click="selectedCount = n"
+            >
+              {{ n }}
+            </button>
+          </div>
+        </div>
 
-      <p class="aqp__desc">
-        Generate a {{ selectedCount }}-question {{ STYLE_OPTIONS.find(s => s.value === selectedStyle)?.label }} quiz from your {{ selectedSource === 'both' ? 'PDF and notes' : selectedSource === 'pdf' ? 'PDF' : 'notes' }}.
-      </p>
+        <div class="aqp__setting-group">
+          <p class="aqp__setting-label">Style</p>
+          <div class="aqp__pills">
+            <button
+              v-for="opt in STYLE_OPTIONS"
+              :key="opt.value"
+              class="aqp__pill"
+              :class="{ 'aqp__pill--active': selectedStyle === opt.value }"
+              @click="selectedStyle = opt.value"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
+      </div>
 
       <button
         class="aqp__generate-btn"
         :disabled="generateDisabled"
         @click="handleGenerate"
       >
-       {{ status === 'reading-pdf' ? 'Reading PDF…' : status === 'loading' ? 'Generating Quiz…' : 'Generate Quiz' }}
+        {{ status === 'reading-pdf' ? 'Reading PDF…' : status === 'loading' ? 'Generating Quiz…' : 'Generate Quiz' }}
       </button>
-      <div v-if="status === 'reading-pdf'" class="aqp__msg aqp__msg--loading">
+
+      <div v-if="status === 'reading-pdf'" class="aqp__msg">
         📄 Extracting PDF text…
       </div>
-      <div v-if="status === 'loading'" class="aqp__msg aqp__msg--loading">
+      <div v-if="status === 'loading'" class="aqp__msg">
         ⏳ Sending to Gemini…
       </div>
-      <transition name="fade">
-        <div v-if="status === 'success'" class="aqp__msg aqp__msg--success">
-          ✓ Quiz Inserted
-        </div>
-      </transition>
     </div>
 
-    <!-- Alert Dialog -->
     <AlertDialog
       :visible="alertVisible"
       :title="alertTitle"
@@ -209,11 +203,6 @@ async function handleGenerate() {
 </template>
 
 <style scoped>
-/* 
-  Replaced all .asp (Ai Summary Panel) classes with .aqp (Ai Quiz Panel).
-  The header has been changed to flex-direction: column to stack the title
-  above the new, wider row of pill selectors.
-*/
 .aqp {
   display: flex;
   flex-direction: column;
@@ -223,12 +212,14 @@ async function handleGenerate() {
 
 .aqp__header {
   display: flex;
-  flex-direction: column; 
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: var(--spacing-xs) var(--spacing-md);
   background: var(--color-bg-toolbar);
   border-bottom: 1px solid var(--color-divider);
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .aqp__title {
@@ -236,29 +227,16 @@ async function handleGenerate() {
   color: var(--color-text-secondary);
   font-family: var(--font-sans);
   white-space: nowrap;
-  font-weight: 600;
 }
 
-.aqp__selectors {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.aqp__pill-group {
+.aqp__sources,
+.aqp__pills {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
 }
 
-.aqp__divider {
-  width: 1px;
-  height: 16px;
-  background-color: var(--color-divider);
-  margin: 0 4px;
-}
-
-.aqp__pill-btn {
+.aqp__pill {
   background: var(--cream-dark);
   border: 1.5px solid var(--cream-mid);
   border-radius: 6px;
@@ -267,16 +245,15 @@ async function handleGenerate() {
   font-family: var(--font-sans);
   color: var(--text-mid);
   cursor: pointer;
+  white-space: nowrap;
   transition: background .15s, border-color .15s, color .15s;
 }
-
-.aqp__pill-btn:hover {
+.aqp__pill:hover {
   background: var(--green-pale);
   border-color: var(--green-light);
   color: var(--green-deep);
 }
-
-.aqp__pill-btn--active {
+.aqp__pill--active {
   background: var(--green-deep);
   border-color: var(--green-deep);
   color: var(--cream);
@@ -292,24 +269,19 @@ async function handleGenerate() {
   padding: var(--spacing-md);
 }
 
-.aqp__icon-wrap {
-  width: 64px;
-  height: 64px;
-  background: var(--cream-dark);
-  border-radius: 16px;
+.aqp__settings-row {
   display: flex;
-  align-items: center;
+  gap: 28px;
+  flex-wrap: wrap;
   justify-content: center;
 }
-.aqp__icon { font-size: 2rem; }
 
-.aqp__desc {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
+.aqp__setting-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
   font-family: var(--font-sans);
+  margin-bottom: 6px;
   text-align: center;
-  max-width: 280px;
-  line-height: 1.6;
 }
 
 .aqp__generate-btn {
@@ -317,7 +289,7 @@ async function handleGenerate() {
   color: var(--cream);
   border: none;
   border-radius: var(--border-radius);
-  padding: 7px 22px;
+  padding: 7px 26px;
   font-size: var(--font-size-sm);
   font-family: var(--font-sans);
   cursor: pointer;
@@ -330,21 +302,9 @@ async function handleGenerate() {
 }
 
 .aqp__msg {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
   font-size: var(--font-size-sm);
   font-family: var(--font-sans);
   font-weight: 600;
-  padding: 6px 16px;
-  border-radius: 20px;
+  color: var(--text-mid);
 }
-.aqp__msg--success {
-  background: #e6f4e3;
-  color: var(--green-deep);
-}
-
-.fade-enter-active, .fade-leave-active { transition: opacity .25s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

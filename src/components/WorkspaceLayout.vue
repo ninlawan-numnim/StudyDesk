@@ -42,7 +42,6 @@ const pdfViewerRef   = ref<InstanceType<typeof PdfViewer> | null>(null)   // ←
 // ── AI+ menu (OCR / Summary / Quiz) ─────────────────────────────────
 const showAiMenu   = ref(false)
 const aiMenuWrapRef = ref<HTMLElement | null>(null)
-const showQuizPanel = ref(false)
 
 function openAiFeature(feature: 'ocr' | 'summary' | 'quiz') {
   showImagePanel.value = false
@@ -52,6 +51,17 @@ function openAiFeature(feature: 'ocr' | 'summary' | 'quiz') {
   showAiMenu.value = false
 }
 
+function toggleAiMenu() {
+  // ถ้ามี panel (OCR/Summary/Quiz) เปิดอยู่ → กด AI+ ซ้ำ = ปิด panel นั้น
+  if (showOcrPanel.value || showSummaryPanel.value || showQuizPanel.value) {
+    showOcrPanel.value = false
+    showSummaryPanel.value = false
+    showQuizPanel.value = false
+    showAiMenu.value = false
+    return
+  }
+  showAiMenu.value = !showAiMenu.value
+}
 
 function handleClickOutsideAiMenu(e: MouseEvent) {
   if (showAiMenu.value && aiMenuWrapRef.value && !aiMenuWrapRef.value.contains(e.target as Node)) {
@@ -142,6 +152,7 @@ function handleOcrTextExtracted(text: string) {
 }
 
 const showSummaryPanel = ref(false)
+const showQuizPanel = ref(false)
 // ── Feature 5: AI Summarization — SRS-5.1.5 ─────────────────────────
 function handleSummaryGenerated(markdown: string) {
   editorRef.value?.insertAtCursor(markdown)
@@ -151,6 +162,14 @@ function handleSummaryGenerated(markdown: string) {
 // SRS-5.1.1 — ดึง text เต็มของ PDF ที่เปิดอยู่ ผ่าน PdfViewer.getFullText()
 async function getPdfText(): Promise<string> {
   return (await pdfViewerRef.value?.getFullText()) ?? ''
+}
+
+// ── Feature 7: AI Quiz Generator ─────────────────────────────────────
+// TODO (Step 5): บันทึกลง SQLite ทันทีที่ generate เสร็จ + เปิด quiz-taking
+// modal (Step 4) แทนการ log เฉยๆ แบบนี้ — ตอนนี้แค่ต่อสายให้ครบ compile ผ่าน
+function handleQuizGenerated(questions: unknown[], style: string) {
+  console.log('[Quiz] generated', questions.length, 'questions, style:', style)
+  showQuizPanel.value = false
 }
 // ── Formatting helpers (B, I, H1, H2) — placeholders รอ feature อื่น ──
 function handleFormat(type: 'bold' | 'italic' | 'h1' | 'h2') {
@@ -262,20 +281,6 @@ async function handlePomodoroComplete(mins: number) {
   })
 }
 
-function toggleAiMenu() {
-  if (showOcrPanel.value || showSummaryPanel.value || showQuizPanel.value) {
-    showOcrPanel.value = false
-    showSummaryPanel.value = false
-    showQuizPanel.value = false
-    showAiMenu.value = false
-    return
-  }
-  showAiMenu.value = !showAiMenu.value
-}
-function handleQuizGenerated(markdown: string) {
-  editorRef.value?.insertAtCursor(markdown)
-  showQuizPanel.value = false
-}
 
 // Watch ทุก state ที่ต้องการ save
 watch([markdownContent, currentPage], scheduleSave)
@@ -381,7 +386,11 @@ watch([markdownContent, currentPage], scheduleSave)
                 >
                   📝 Summary
                 </button>
-                <button class="editor-bar__ai-menu-item" :class="{ 'editor-bar__ai-menu-item--active': showQuizPanel }" @click="openAiFeature('quiz')">
+                <button
+                  class="editor-bar__ai-menu-item"
+                  :class="{ 'editor-bar__ai-menu-item--active': showQuizPanel }"
+                  @click="openAiFeature('quiz')"
+                >
                   🧩 Quiz
                 </button>
               </div>
@@ -426,14 +435,14 @@ watch([markdownContent, currentPage], scheduleSave)
                 />
             </div>
           </transition>
-          <transition name="slide-down">
+        <transition name="slide-down">
             <div v-if="showQuizPanel" class="workspace__image-panel">
               <AiQuizPanel
-                :pdf-available="!!pdfBuffer"
-                :notes-content="markdownContent"
-                :get-pdf-text="getPdfText"
-                @quiz-generated="handleQuizGenerated"
-              />
+                  :pdf-available="!!pdfBuffer"
+                  :notes-content="markdownContent"
+                  :get-pdf-text="getPdfText"
+                  @quiz-generated="handleQuizGenerated"
+                />
             </div>
           </transition>
 
@@ -665,6 +674,7 @@ watch([markdownContent, currentPage], scheduleSave)
   background: var(--green-pale);
   color: var(--green-deep);
 }
+
 /* AI+ button */
 .editor-bar__ai {
   background: var(--green-deep);

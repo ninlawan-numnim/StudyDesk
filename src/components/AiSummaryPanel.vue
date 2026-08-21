@@ -1,10 +1,15 @@
+<!-- src/components/AiSummaryPanel.vue -->
+<!-- Feature 5: AI Summarization                                        -->
+<!-- SRS-5.1.1: source selector (PDF / Notes / Both)                    -->
+<!-- SRS-5.1.2 / 5.1.3: validate selected source has content before API -->
+<!-- SRS-5.1.4: loading indicator while calling Gemini                  -->
+<!-- SRS-5.1.5: insert summary into editor on success                   -->
+<!-- SRS-5.1.6: specific error message on failure / context-limit       -->
+
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import AlertDialog from './AlertDialog.vue'
-import { summarizeContent, SummaryError } from '../services/gemini'
-
-// Local type for summary source options (gemini service does not export this)
-type SummarySource = 'pdf' | 'notes' | 'both'
+import { summarizeContent, SummaryError, type SummarySource } from '../services/gemini'
 
 const props = defineProps<{
   pdfAvailable: boolean
@@ -52,15 +57,15 @@ const generateDisabled = computed(
   () => status.value === 'loading' || status.value === 'reading-pdf' || !hasContent.value
 )
 
+// ── ประกอบ text จริงตาม source ที่เลือก ──────────────────────────────
 // ตัด base64 image data-URI ออกก่อนส่งไป Gemini
 // (ไม่งั้น notes ที่มีรูปแทรกจะยาวเป็นแสนตัวอักษรจนชน context limit ปลอมๆ)
 function stripEmbeddedImages(markdown: string): string {
   return markdown.replace(/<img[^>]*src=["']data:[^"']*["'][^>]*>/gi, '[Embedded Image]')
 }
 
-// ── ประกอบ text จริงตาม source ที่เลือก ──────────────────────────────
 async function buildSourceText(): Promise<string> {
- const notes = stripEmbeddedImages(props.notesContent).trim()
+  const notes = stripEmbeddedImages(props.notesContent).trim()
 
   const needsPdf = selectedSource.value !== 'notes' && props.pdfAvailable
   let pdfText = ''
@@ -82,9 +87,7 @@ async function handleGenerate() {
     return
   }
 
-  status.value = 'loading'
-
- try {
+  try {
     const sourceText = await buildSourceText()
     status.value = 'loading'
 
@@ -96,7 +99,7 @@ async function handleGenerate() {
   } catch (err) {
     status.value = 'error'
     const msg = err instanceof SummaryError
-      ? (err as SummaryError).message
+      ? err.message
       : 'Summary generation failed. Please try again.'
     showAlert(msg, 'Summary Failed')
   }
@@ -136,8 +139,9 @@ async function handleGenerate() {
         :disabled="generateDisabled"
         @click="handleGenerate"
       >
-       {{ status === 'reading-pdf' ? 'Reading PDF…' : status === 'loading' ? 'Summarizing…' : 'Generate Summary' }}
+        {{ status === 'reading-pdf' ? 'Reading PDF…' : status === 'loading' ? 'Summarizing…' : 'Generate Summary' }}
       </button>
+
       <div v-if="status === 'reading-pdf'" class="asp__msg asp__msg--loading">
         📄 Extracting PDF text…
       </div>
