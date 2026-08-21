@@ -18,6 +18,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import PomodoroTimer from './PomodoroTimer.vue'
 import OcrUploadPanel from './OcrUploadPanel.vue'
 import AiSummaryPanel from './AiSummaryPanel.vue'
+import AiQuizPanel from './AiQuizPanel.vue'
 
 // ── Feature 1 ─────────────────────────────────────────────────────
 const pdfBuffer       = ref<number[] | null>(null)
@@ -41,13 +42,16 @@ const pdfViewerRef   = ref<InstanceType<typeof PdfViewer> | null>(null)   // ←
 // ── AI+ menu (OCR / Summary / Quiz) ─────────────────────────────────
 const showAiMenu   = ref(false)
 const aiMenuWrapRef = ref<HTMLElement | null>(null)
+const showQuizPanel = ref(false)
 
-function openAiFeature(feature: 'ocr' | 'summary') {
+function openAiFeature(feature: 'ocr' | 'summary' | 'quiz') {
   showImagePanel.value = false
   showOcrPanel.value     = feature === 'ocr'
   showSummaryPanel.value = feature === 'summary'
+  showQuizPanel.value    = feature === 'quiz'
   showAiMenu.value = false
 }
+
 
 function handleClickOutsideAiMenu(e: MouseEvent) {
   if (showAiMenu.value && aiMenuWrapRef.value && !aiMenuWrapRef.value.contains(e.target as Node)) {
@@ -259,16 +263,21 @@ async function handlePomodoroComplete(mins: number) {
 }
 
 function toggleAiMenu() {
-  // ถ้ามี panel (OCR/Summary) เปิดอยู่ → กด AI+ ซ้ำ = ปิด panel นั้น
-  if (showOcrPanel.value || showSummaryPanel.value) {
+  if (showOcrPanel.value || showSummaryPanel.value || showQuizPanel.value) {
     showOcrPanel.value = false
     showSummaryPanel.value = false
+    showQuizPanel.value = false
     showAiMenu.value = false
     return
   }
   showAiMenu.value = !showAiMenu.value
 }
-
+// TODO (Step 3): บันทึกลง SQLite ทันทีที่ generate เสร็จ + เปิด quiz-taking
+// modal (Step 4) แทนการ log เฉยๆ แบบนี้
+function handleQuizGenerated(questions: unknown[], style: string) {
+  console.log('[Quiz] generated', questions.length, 'questions, style:', style)
+  showQuizPanel.value = false
+}
 
 // Watch ทุก state ที่ต้องการ save
 watch([markdownContent, currentPage], scheduleSave)
@@ -340,7 +349,7 @@ watch([markdownContent, currentPage], scheduleSave)
             class="editor-bar__fmt"
             :class="{ 'editor-bar__fmt--active': showImagePanel }"
             title="Insert Image"
-            @click="showImagePanel = !showImagePanel; showOcrPanel = false; showSummaryPanel = false; showAiMenu = false"
+            @click="showImagePanel = !showImagePanel; showOcrPanel = false; showSummaryPanel = false; showQuizPanel = false; showAiMenu = false"
           >
             🖼
           </button>
@@ -351,7 +360,7 @@ watch([markdownContent, currentPage], scheduleSave)
           <div class="editor-bar__ai-menu-wrap" ref="aiMenuWrapRef">
             <button
               class="editor-bar__ai"
-              :class="{ 'editor-bar__ai--active': showAiMenu || showOcrPanel || showSummaryPanel }"
+              :class="{ 'editor-bar__ai--active': showAiMenu || showOcrPanel || showSummaryPanel || showQuizPanel }"
               title="AI Features"
               @click="toggleAiMenu"
             >
@@ -374,11 +383,7 @@ watch([markdownContent, currentPage], scheduleSave)
                 >
                   📝 Summary
                 </button>
-                <button
-                  class="editor-bar__ai-menu-item editor-bar__ai-menu-item--disabled"
-                  title="Coming soon — Feature #7"
-                  disabled
-                >
+                <button class="editor-bar__ai-menu-item" :class="{ 'editor-bar__ai-menu-item--active': showQuizPanel }" @click="openAiFeature('quiz')">
                   🧩 Quiz
                 </button>
               </div>
@@ -421,6 +426,16 @@ watch([markdownContent, currentPage], scheduleSave)
                   :get-pdf-text="getPdfText"
                   @summary-generated="handleSummaryGenerated"
                 />
+            </div>
+          </transition>
+          <transition name="slide-down">
+            <div v-if="showQuizPanel" class="workspace__image-panel">
+              <AiQuizPanel
+                :pdf-available="!!pdfBuffer"
+                :notes-content="markdownContent"
+                :get-pdf-text="getPdfText"
+                @quiz-generated="handleQuizGenerated"
+              />
             </div>
           </transition>
 

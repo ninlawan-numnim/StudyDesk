@@ -130,3 +130,34 @@ ${trimmed}`;
     throw new SummaryError('Summary generation failed. Please try again later.', 'API_ERROR');
   }
 }
+export type QuizSource = 'pdf' | 'notes' | 'both';
+export type QuizCount  = 5 | 10 | 20;
+export type QuizStyle  = 'recall' | 'understanding' | 'application' | 'mixed';
+export type QuizDifficulty = 'recall' | 'understanding' | 'application';
+
+export interface QuizQuestion {
+  question:    string;
+  choices:     string[];
+  answer:      number;
+  explanation: string;
+  difficulty:  QuizDifficulty;
+}
+
+export class QuizError extends Error {
+  constructor(
+    message: string,
+    public code: 'EMPTY_SOURCE' | 'CONTEXT_LIMIT' | 'MALFORMED' | 'API_ERROR'
+  ) {
+    super(message);
+    this.name = 'QuizError';
+  }
+}
+
+export async function generateQuiz(
+  _source: QuizSource,
+  _count: QuizCount,
+  _style: QuizStyle,
+  _text: string
+): Promise<QuizQuestion[]> {
+  throw new QuizError('Quiz generation service is not implemented yet.', 'API_ERROR');
+}
