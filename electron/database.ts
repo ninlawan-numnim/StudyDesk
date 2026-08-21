@@ -60,6 +60,28 @@ function initSchema(database: Database.Database): void {
   completed_at TEXT    NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (session_id) REFERENCES STUDY_SESSIONS(session_id)
 );
+-- Feature 7 — AI Quiz Generator (SRS-7.1.8: persist for later retake)
+CREATE TABLE IF NOT EXISTS QUIZZES (
+  quiz_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id     INTEGER NOT NULL,
+  source         TEXT    NOT NULL, -- 'pdf' | 'notes' | 'both'
+  question_count INTEGER NOT NULL,
+  style          TEXT    NOT NULL, -- 'recall' | 'understanding' | 'application' | 'mixed'
+  created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (session_id) REFERENCES STUDY_SESSIONS(session_id)
+);
+
+CREATE TABLE IF NOT EXISTS QUIZ_QUESTIONS (
+  question_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+  quiz_id      INTEGER NOT NULL,
+  question     TEXT    NOT NULL,
+  choices      TEXT    NOT NULL, -- JSON array of strings
+  answer_index INTEGER NOT NULL,
+  explanation  TEXT    NOT NULL,
+  difficulty   TEXT    NOT NULL, -- 'recall' | 'understanding' | 'application'
+  position     INTEGER NOT NULL, -- ลำดับข้อภายใน quiz
+  FOREIGN KEY (quiz_id) REFERENCES QUIZZES(quiz_id)
+);
   `)
 
   // ถ้ายังไม่มี session เลย ให้สร้าง default session ก่อน
@@ -180,6 +202,64 @@ export function insertPomodoroLog(sessionId: number, durationMins: number): void
     INSERT INTO POMODORO_LOGS (session_id, duration_mins, completed_at)
     VALUES (?, ?, datetime('now'))
   `).run(sessionId, durationMins)
+}
+
+
+// Feature 7 — AI Quiz Generator (SRS-7.1.x)
+export interface QuizQuestionInput {
+  question:    string
+  choices:     string[]
+  answer:      number
+  explanation: string
+  difficulty:  'recall' | 'understanding' | 'application'
+}
+
+export interface SaveQuizInput {
+  session_id:     number
+  source:         'pdf' | 'notes' | 'both'
+  question_count: number
+  style:          'recall' | 'understanding' | 'application' | 'mixed'
+  questions:      QuizQuestionInput[]
+}
+
+/**
+ * saveQuiz — SRS-7.1.8
+ * บันทึก quiz ที่ generate เสร็จแล้ว (ทันทีหลัง generate, ก่อนตอบ)
+ * ไว้ใน SQLite เพื่อ retake ทีหลัง — ทำเป็น transaction เดียว กัน
+ * quiz ครึ่งๆ กลางๆ ค้างใน DB ถ้า insert คำถามข้อไหนพังกลางทาง
+ */
+export function saveQuiz(input: SaveQuizInput): number {
+  const database = getDb()
+
+  const insertQuiz = database.prepare(`
+    INSERT INTO QUIZZES (session_id, source, question_count, style, created_at)
+    VALUES (?, ?, ?, ?, datetime('now'))
+  `)
+  const insertQuestion = database.prepare(`
+    INSERT INTO QUIZ_QUESTIONS (quiz_id, question, choices, answer_index, explanation, difficulty, position)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `)
+
+  const run = database.transaction((data: SaveQuizInput) => {
+    const quizResult = insertQuiz.run(data.session_id, data.source, data.question_count, data.style)
+    const quizId = quizResult.lastInsertRowid as number
+
+    data.questions.forEach((q, index) => {
+      insertQuestion.run(
+        quizId,
+        q.question,
+        JSON.stringify(q.choices),
+        q.answer,
+        q.explanation,
+        q.difficulty,
+        index
+      )
+    })
+
+    return quizId
+  })
+
+  return run(input)
 }
 
 /**
