@@ -32,5 +32,6 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   createSession: (path: string) => ipcRenderer.invoke('session:create', path),
   logPomodoro: (data: { session_id: number; duration_mins: number }) =>
   ipcRenderer.invoke('pomodoro:log', data),
-  
+  // Feature 7 — AI Quiz Generator (SRS-7.1.8)
+saveQuiz: (data: object) => ipcRenderer.invoke('quiz:save', data),
 })

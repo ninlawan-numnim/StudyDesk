@@ -2,6 +2,8 @@
 import { createApp } from 'vue'
 import './assets/styles/base.css'
 import App from './App.vue'
+import { saveSession, loadSession, closeDb, getSessionByPdfPath, createSession, insertPomodoroLog, saveQuiz, type SaveQuizInput } from './electron/database 
+'
 
 import * as pdfjsLib from 'pdfjs-dist'
 

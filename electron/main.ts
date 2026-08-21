@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
-import { saveSession, loadSession, closeDb, getSessionByPdfPath, createSession, insertPomodoroLog } from './database'
+import { saveSession, loadSession, closeDb, getSessionByPdfPath, createSession, insertPomodoroLog, saveQuiz, type SaveQuizInput } from './database'
+
 
 const require = createRequire(import.meta.url)
 const __filename = fileURLToPath(import.meta.url)
@@ -141,6 +142,16 @@ ipcMain.handle('pomodoro:log', (_event, data: { session_id: number; duration_min
   } catch (e) {
     console.error('[DB] insertPomodoroLog error:', e)
     return { success: false }
+  }
+})
+// Feature 7 — SRS-7.1.8: บันทึก quiz ทันทีหลัง generate เสร็จ
+ipcMain.handle('quiz:save', (_event, data: SaveQuizInput) => {
+  try {
+    const quizId = saveQuiz(data)
+    return { success: true, quiz_id: quizId }
+  } catch (e) {
+    console.error('[DB] saveQuiz error:', e)
+    return { success: false, quiz_id: null }
   }
 })
 app.whenReady().then(createWindow)

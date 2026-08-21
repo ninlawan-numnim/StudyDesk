@@ -58,5 +58,19 @@ interface Window {
     getByPath: (path: string) => Promise<any>
     createSession: (path: string) => Promise<any>
     logPomodoro: (data: { session_id: number; duration_mins: number }) => Promise<{ success: boolean }>
+    // Feature 7 — AI Quiz Generator (SRS-7.1.8)
+    saveQuiz: (data: {
+      session_id:     number
+      source:         'pdf' | 'notes' | 'both'
+      question_count: number
+      style:          'recall' | 'understanding' | 'application' | 'mixed'
+      questions: {
+        question:    string
+        choices:     string[]
+        answer:      number
+        explanation: string
+        difficulty:  'recall' | 'understanding' | 'application'
+      }[]
+    }) => Promise<{ success: boolean; quiz_id: number | null }>
   }
 }
