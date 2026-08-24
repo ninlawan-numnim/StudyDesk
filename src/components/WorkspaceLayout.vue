@@ -19,6 +19,8 @@ import PomodoroTimer from './PomodoroTimer.vue'
 import OcrUploadPanel from './OcrUploadPanel.vue'
 import AiSummaryPanel from './AiSummaryPanel.vue'
 import AiQuizPanel from './AiQuizPanel.vue'
+import QuizTakingModal from './QuizTakingModal.vue'
+import type { QuizQuestion, QuizStyle } from '../services/gemini'
 
 // ── Feature 1 ─────────────────────────────────────────────────────
 const pdfBuffer       = ref<number[] | null>(null)
@@ -164,13 +166,16 @@ async function getPdfText(): Promise<string> {
   return (await pdfViewerRef.value?.getFullText()) ?? ''
 }
 
-// ── Feature 7: AI Quiz Generator ─────────────────────────────────────
-// TODO (Step 5): บันทึกลง SQLite ทันทีที่ generate เสร็จ + เปิด quiz-taking
-// modal (Step 4) แทนการ log เฉยๆ แบบนี้ — ตอนนี้แค่ต่อสายให้ครบ compile ผ่าน
-// TODO (Step 4/5): เปิด QuizTakingModal จริงแทนการ log เฉยๆ แบบนี้
-function handleQuizGenerated(questions: unknown[], style: string, quizId: number | null) {
-  console.log('[Quiz] generated', questions.length, 'questions, style:', style, 'quiz_id:', quizId)
+// Feature 7 — quiz-taking modal state (Step 4/5)
+const activeQuiz = ref<{ questions: QuizQuestion[]; style: QuizStyle; quizId: number | null } | null>(null)
+
+function handleQuizGenerated(questions: QuizQuestion[], style: QuizStyle, quizId: number | null) {
   showQuizPanel.value = false
+  activeQuiz.value = { questions, style, quizId }
+}
+
+function handleQuizModalClose() {
+  activeQuiz.value = null
 }
 // ── Formatting helpers (B, I, H1, H2) — placeholders รอ feature อื่น ──
 function handleFormat(type: 'bold' | 'italic' | 'h1' | 'h2') {
@@ -481,7 +486,11 @@ watch([markdownContent, currentPage], scheduleSave)
       type="error"
       @close="alertVisible = false"
     />
-
+      <QuizTakingModal
+        v-if="activeQuiz"
+        :questions="activeQuiz.questions"
+        @close="handleQuizModalClose"
+      />
   </div>
 </template>
 
