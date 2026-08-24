@@ -167,8 +167,9 @@ async function getPdfText(): Promise<string> {
 // ── Feature 7: AI Quiz Generator ─────────────────────────────────────
 // TODO (Step 5): บันทึกลง SQLite ทันทีที่ generate เสร็จ + เปิด quiz-taking
 // modal (Step 4) แทนการ log เฉยๆ แบบนี้ — ตอนนี้แค่ต่อสายให้ครบ compile ผ่าน
-function handleQuizGenerated(questions: unknown[], style: string) {
-  console.log('[Quiz] generated', questions.length, 'questions, style:', style)
+// TODO (Step 4/5): เปิด QuizTakingModal จริงแทนการ log เฉยๆ แบบนี้
+function handleQuizGenerated(questions: unknown[], style: string, quizId: number | null) {
+  console.log('[Quiz] generated', questions.length, 'questions, style:', style, 'quiz_id:', quizId)
   showQuizPanel.value = false
 }
 // ── Formatting helpers (B, I, H1, H2) — placeholders รอ feature อื่น ──
@@ -441,6 +442,7 @@ watch([markdownContent, currentPage], scheduleSave)
                   :pdf-available="!!pdfBuffer"
                   :notes-content="markdownContent"
                   :get-pdf-text="getPdfText"
+                  :session-id="currentSessionId"
                   @quiz-generated="handleQuizGenerated"
                 />
             </div>

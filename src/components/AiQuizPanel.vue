@@ -25,9 +25,12 @@ const props = defineProps<{
   pdfAvailable: boolean
   notesContent: string
   getPdfText: () => Promise<string>
+  sessionId: number | null
 }>()
 
-const emit = defineEmits<{ 'quiz-generated': [questions: QuizQuestion[], style: QuizStyle] }>()
+const emit = defineEmits<{
+  'quiz-generated': [questions: QuizQuestion[], style: QuizStyle, quizId: number | null]
+}>()
 
 // ── SRS-7.1.1: settings ──────────────────────────────────────────────
 const SOURCE_OPTIONS = [
@@ -113,14 +116,42 @@ async function handleGenerate() {
       sourceText
     )
 
+    // SRS-7.1.8 — บันทึกทันทีหลัง generate สำเร็จ ก่อนผู้ใช้ตอบข้อไหนเลย
+    const quizId = await persistQuiz(questions)
+
     status.value = 'idle'
-    emit('quiz-generated', questions, selectedStyle.value)
+    emit('quiz-generated', questions, selectedStyle.value, quizId)
   } catch (err) {
     status.value = 'error'
     const msg = err instanceof QuizError
       ? err.message
       : 'Quiz generation failed. Please try again.'
     showAlert(msg, 'Quiz Generation Failed')
+  }
+}
+
+async function persistQuiz(questions: QuizQuestion[]): Promise<number | null> {
+  if (!props.sessionId) {
+    console.warn('[Quiz] No active session — quiz will not be saved for retake')
+    return null
+  }
+
+  try {
+    const result = await window.ipcRenderer.saveQuiz({
+      session_id:     props.sessionId,
+      source:         selectedSource.value,
+      question_count: selectedCount.value,
+      style:          selectedStyle.value,
+      questions,
+    })
+    if (!result.success) {
+      console.error('[Quiz] saveQuiz IPC returned success: false')
+      return null
+    }
+    return result.quiz_id
+  } catch (err) {
+    console.error('[Quiz] saveQuiz IPC call failed:', err)
+    return null
   }
 }
 </script>
