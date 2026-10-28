@@ -1,13 +1,15 @@
 import { defineConfig } from 'vitest/config'
- 
-// แยกไฟล์ config ออกจาก vite.config.ts ตั้งใจ — vite.config.ts ผูกกับ
-// vite-plugin-electron (main/preload build) ซึ่งไม่เกี่ยวกับ unit test เลย
-// และมี branch `process.env.NODE_ENV === 'test'` อยู่แล้วที่จะยุ่งยากถ้า merge
-// config เข้าด้วยกัน จึงแยกให้ `vitest` อ่านไฟล์นี้แทน
+import vue from '@vitejs/plugin-vue'
+
+// คงความตั้งใจเดิมของเพื่อน: ค่าตั้งต้นเป็น node สำหรับ pure logic
+// แต่เปิดปลั๊กอิน vue และใช้ happy-dom เฉพาะในโฟลเดอร์ components
 export default defineConfig({
+  plugins: [vue()],
   test: {
-    environment: 'node', // pure logic functions เท่านั้น ไม่ต้องใช้ jsdom
+    environment: 'node',
+    environmentMatchGlobs: [
+      ['src/components/**', 'happy-dom'],
+    ],
     include: ['src/**/*.test.ts'],
   },
 })
- 

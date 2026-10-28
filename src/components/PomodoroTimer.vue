@@ -70,7 +70,7 @@ onUnmounted(() => { if (ticker) clearInterval(ticker) })
 
 <template>
   <!-- ── Idle: ยังไม่ได้กด Start ── -->
-  <div v-if="!isRunning && secondsLeft === 25 * 60 && mode === 'work'" class="pomo pomo--idle">
+ <div v-if="!isRunning && secondsLeft === 25 * 60 && mode === 'work'" class="pomo pomo--idle">
     <img :src="tomatoIcon" class="pomo__icon" alt="pomodoro" />
     <span class="pomo__label">Pomodoro Timer</span>
     <button class="pomo__btn-start" @click="start">Start</button>
