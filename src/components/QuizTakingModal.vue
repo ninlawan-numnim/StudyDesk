@@ -60,10 +60,16 @@ function handleNext() {
   }
   currentIndex.value += 1
 }
-
 function handleClose() {
   emit('close')
 }
+
+function handleRetake() {
+  selectedAnswers.value = props.questions.map(() => null)
+  currentIndex.value = 0
+  phase.value = 'taking'
+}
+
 </script>
 
 <template>
@@ -72,8 +78,18 @@ function handleClose() {
 
       <button class="qtm__close" title="Close" @click="handleClose">✕</button>
 
+      <template v-if="!questions || questions.length === 0">
+        <div class="qtm__results">
+          <p class="qtm__results-label">Oops!</p>
+          <p class="qtm__results-note empty-msg">No questions available</p>
+          <div class="qtm__results-actions">
+            <button class="qtm__next-btn" @click="handleClose">Close</button>
+          </div>
+        </div>
+      </template>
+
       <!-- ── Taking phase ──────────────────────────────────────── -->
-      <template v-if="phase === 'taking'">
+      <template v-else-if="phase === 'taking'">
         <div class="qtm__meta">
           <span>Question {{ currentIndex + 1 }} of {{ questions.length }}</span>
           <span>{{ difficultyLabel(currentQuestion.difficulty) }}</span>
@@ -117,7 +133,10 @@ function handleClose() {
           <p class="qtm__results-label">Quiz complete</p>
           <p class="qtm__results-score">{{ score }} / {{ questions.length }} correct</p>
           <p class="qtm__results-note">Saved — you can retake this quiz anytime</p>
+          <div class="qtm__results-actions">
+          <button class="qtm__retake-btn" @click="handleRetake">Retake</button>
           <button class="qtm__next-btn" @click="handleClose">Done</button>
+          </div>
         </div>
       </template>
 
@@ -283,6 +302,23 @@ function handleClose() {
   color: var(--text-muted);
   margin-bottom: 20px;
 }
+.qtm__results-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.qtm__retake-btn {
+  background: transparent;
+  color: var(--green-deep);
+  border: 1px solid var(--green-deep);
+  border-radius: var(--border-radius);
+  padding: 8px 26px;
+  font-size: 0.85rem;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background .2s;
+}
+.qtm__retake-btn:hover { background: rgba(0, 0, 0, 0.05); }
 
 .qtm-fade-enter-active { transition: opacity .15s ease; }
 .qtm-fade-enter-from { opacity: 0; }
